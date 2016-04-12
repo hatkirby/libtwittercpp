@@ -1,0 +1,9 @@
+[submodule "vendor/liboauthcpp"]
+	path = vendor/liboauthcpp
+	url = https://github.com/sirikata/liboauthcpp
+[submodule "vendor/json"]
+	path = vendor/json
+	url = https://github.com/nlohmann/json
+[submodule "vendor/curlcpp"]
+	path = vendor/curlcpp
+	url = https://github.com/JosephP91/curlcpp
