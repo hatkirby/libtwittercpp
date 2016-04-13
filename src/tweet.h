@@ -1,6 +1,10 @@
 #ifndef TWEET_H_CE980721
 #define TWEET_H_CE980721
 
+#include <json.hpp>
+
+using nlohmann::json;
+
 namespace twitter {
   
   class tweet {

@@ -1,4 +1,4 @@
-#include "twitter.h"
+#include "auth.h"
 
 namespace twitter {
   
