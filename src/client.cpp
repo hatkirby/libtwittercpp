@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <liboauthcpp/liboauthcpp.h>
 #include "util.h"
+#include <unistd.h>
 
 // These are here for debugging curl stuff
 
