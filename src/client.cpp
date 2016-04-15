@@ -131,7 +131,8 @@ namespace twitter {
     curl::curl_pair<CURLformoption, std::string> command_name(CURLFORM_COPYNAME, "command");
     curl::curl_pair<CURLformoption, std::string> command_cont(CURLFORM_COPYCONTENTS, "INIT");
     curl::curl_pair<CURLformoption, std::string> bytes_name(CURLFORM_COPYNAME, "total_bytes");
-    curl::curl_pair<CURLformoption, std::string> bytes_cont(CURLFORM_COPYCONTENTS, std::to_string(data_length));
+    std::string str_data_length = std::to_string(data_length);
+    curl::curl_pair<CURLformoption, std::string> bytes_cont(CURLFORM_COPYCONTENTS, str_data_length);
     curl::curl_pair<CURLformoption, std::string> type_name(CURLFORM_COPYNAME, "media_type");
     curl::curl_pair<CURLformoption, std::string> type_cont(CURLFORM_COPYCONTENTS, media_type);
     form.add(command_name, command_cont);
@@ -181,7 +182,8 @@ namespace twitter {
     curl::curl_pair<CURLformoption, std::string> command3_name(CURLFORM_COPYNAME, "command");
     curl::curl_pair<CURLformoption, std::string> command3_cont(CURLFORM_COPYCONTENTS, "FINALIZE");
     curl::curl_pair<CURLformoption, std::string> media_id_name(CURLFORM_COPYNAME, "media_id");
-    curl::curl_pair<CURLformoption, std::string> media_id_cont(CURLFORM_COPYCONTENTS, std::to_string(media_id));
+    std::string str_media_id = std::to_string(media_id);
+    curl::curl_pair<CURLformoption, std::string> media_id_cont(CURLFORM_COPYCONTENTS, str_media_id);
     finalize_form.add(command3_name, command3_cont);
     finalize_form.add(media_id_name, media_id_cont);
     
