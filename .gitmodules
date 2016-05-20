@@ -6,4 +6,4 @@
 	url = https://github.com/nlohmann/json
 [submodule "vendor/curlcpp"]
 	path = vendor/curlcpp
-	url = https://github.com/hatkirby/curlcpp
+	url = https://github.com/JosephP91/curlcpp
