@@ -12,5 +12,9 @@ namespace twitter {
 #include "auth.h"
 #include "client.h"
 #include "tweet.h"
+#include "user.h"
+#include "notification.h"
+#include "list.h"
+#include "direct_message.h"
 
 #endif /* end of include guard: TWITTER_H_AC7A7666 */
