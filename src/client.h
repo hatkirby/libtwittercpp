@@ -5,8 +5,6 @@
 #include "tweet.h"
 #include "auth.h"
 #include <list>
-#include <curl_easy.h>
-#include <curl_header.h>
 #include <thread>
 #include <mutex>
 #include "notification.h"
@@ -19,6 +17,8 @@ namespace OAuth {
   class Token;
   class Client;
 };
+
+class curl_httppost;
 
 namespace twitter {
   
@@ -36,6 +36,9 @@ namespace twitter {
           void start();
           void stop();
           
+          int progress();
+          size_t write(char* ptr, size_t size, size_t nmemb);
+          
         private:
           enum class backoff {
             none,
@@ -45,11 +48,6 @@ namespace twitter {
           };
           
           void run();
-          int progress();
-          int write(char* ptr, size_t size, size_t nmemb);
-          
-          friend int client_stream_progress_callback_wrapper(void* stream, curl_off_t, curl_off_t, curl_off_t, curl_off_t);
-          friend size_t client_stream_write_callback_wrapper(void* ptr, size_t size, size_t nmemb, void* stream);
           
           client& _client;
           notify_callback _notify;

@@ -3,6 +3,8 @@
 #include <set>
 #include <algorithm>
 #include <liboauthcpp/liboauthcpp.h>
+#include <curl_easy.h>
+#include <curl_header.h>
 #include "util.h"
 #include <json.hpp>
 
@@ -727,7 +729,7 @@ namespace twitter {
     }
   }
   
-  int client::stream::write(char* ptr, size_t size, size_t nmemb)
+  size_t client::stream::write(char* ptr, size_t size, size_t nmemb)
   {
     for (size_t i = 0; i < size*nmemb; i++)
     {
