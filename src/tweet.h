@@ -16,6 +16,7 @@ namespace twitter {
       tweet_id getID() const;
       std::string getText() const;
       const user& getAuthor() const;
+      bool isRetweet() const;
       
       operator bool() const;
       
@@ -24,6 +25,7 @@ namespace twitter {
       tweet_id _id;
       std::string _text;
       user _author;
+      bool _retweeted;
   };
   
 };
