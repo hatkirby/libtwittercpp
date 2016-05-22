@@ -420,6 +420,22 @@ namespace twitter {
     _user_stream.stop();
   }
   
+  std::string client::generateReplyPrefill(tweet _tweet) const
+  {
+    std::ostringstream output;
+    output << "@" << _tweet.getAuthor().getScreenName() << " ";
+    
+    for (auto mention : _tweet.getMentions())
+    {
+      if ((mention.first != _tweet.getAuthor().getID()) && (mention.first != _current_user.getID()))
+      {
+        output << "@" << mention.second << " ";
+      }
+    }
+    
+    return output.str();
+  }
+  
   bool client::performGet(std::string url, long& response_code, std::string& result)
   {
     std::ostringstream output;

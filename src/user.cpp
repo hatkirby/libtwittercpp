@@ -42,5 +42,10 @@ namespace twitter {
   {
     return _id == other._id;
   }
+  
+  bool user::operator!=(const user& other) const
+  {
+    return _id != other._id;
+  }
 
 };

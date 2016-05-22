@@ -18,6 +18,7 @@ namespace twitter {
       
       operator bool() const;
       bool operator==(const user& other) const;
+      bool operator!=(const user& other) const;
       
     private:
       bool _valid = false;

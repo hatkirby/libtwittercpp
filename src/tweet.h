@@ -3,6 +3,8 @@
 
 #include <string>
 #include "user.h"
+#include <vector>
+#include <utility>
 
 namespace twitter {
   
@@ -17,6 +19,7 @@ namespace twitter {
       std::string getText() const;
       const user& getAuthor() const;
       bool isRetweet() const;
+      std::vector<std::pair<user_id, std::string>> getMentions() const;
       
       operator bool() const;
       
@@ -26,6 +29,7 @@ namespace twitter {
       std::string _text;
       user _author;
       bool _retweeted;
+      std::vector<std::pair<user_id, std::string>> _mentions;
   };
   
 };

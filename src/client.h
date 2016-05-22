@@ -84,6 +84,8 @@ namespace twitter {
       void startUserStream();
       void stopUserStream();
       
+      std::string generateReplyPrefill(tweet t) const;
+      
     private:
       friend class stream;
       
