@@ -14,11 +14,18 @@ namespace twitter {
     public:
       tweet();
       tweet(std::string data);
+      tweet(const tweet& other);
+      tweet(tweet&& other);
+      ~tweet();
+      
+      tweet& operator=(tweet other);
+      friend void swap(tweet& first, tweet& second);
       
       tweet_id getID() const;
       std::string getText() const;
       const user& getAuthor() const;
       bool isRetweet() const;
+      tweet getRetweet() const;
       std::vector<std::pair<user_id, std::string>> getMentions() const;
       
       operator bool() const;
@@ -28,7 +35,8 @@ namespace twitter {
       tweet_id _id;
       std::string _text;
       user _author;
-      bool _retweeted;
+      bool _is_retweet = false;
+      tweet* _retweeted_status = nullptr;
       std::vector<std::pair<user_id, std::string>> _mentions;
   };
   
