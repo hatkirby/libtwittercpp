@@ -707,7 +707,12 @@ namespace twitter {
             _backoff_amount = std::chrono::seconds(5);
           }
         } else {
-          break;
+          if (_backoff_type == backoff::none)
+          {
+            _established = false;
+            _backoff_type = backoff::network;
+            _backoff_amount = std::chrono::milliseconds(0);
+          }
         }
       }
       
