@@ -31,6 +31,7 @@ namespace twitter {
           stream(client& _client);
           
           void setNotifyCallback(notify_callback _n);
+          void setReceiveAllReplies(bool _arg);
           
           bool isRunning() const;
           void start();
@@ -54,13 +55,13 @@ namespace twitter {
           bool _stop = false;
           std::thread _thread;
           std::mutex _running_mutex;
-          std::mutex _notify_mutex;
           std::mutex _stall_mutex;
           std::string _buffer;
           time_t _last_write;
           bool _established = false;
           backoff _backoff_type = backoff::none;
           std::chrono::milliseconds _backoff_amount;
+          bool _receive_all_replies = false;
       };
       
       client(const auth& _auth);
@@ -80,7 +81,9 @@ namespace twitter {
       
       const user& getUser() const;
       
+      // NOTE: stream setting function calls will fail silently when stream is running
       void setUserStreamNotifyCallback(stream::notify_callback callback);
+      void setUserStreamReceiveAllReplies(bool _arg);
       void startUserStream();
       void stopUserStream();
       

@@ -410,6 +410,11 @@ namespace twitter {
     _user_stream.setNotifyCallback(callback);
   }
   
+  void client::setUserStreamReceiveAllReplies(bool _arg)
+  {
+    _user_stream.setReceiveAllReplies(_arg);
+  }
+  
   void client::startUserStream()
   {
     _user_stream.start();
@@ -614,8 +619,22 @@ namespace twitter {
   
   void client::stream::setNotifyCallback(notify_callback _n)
   {
-    std::lock_guard<std::mutex> _notify_lock(_notify_mutex);
-    _notify = _n;
+    std::lock_guard<std::mutex> _running_lock(_running_mutex);
+    
+    if (!_thread.joinable())
+    {
+      _notify = _n;
+    }
+  }
+  
+  void client::stream::setReceiveAllReplies(bool _arg)
+  {
+    std::lock_guard<std::mutex> _running_lock(_running_mutex);
+    
+    if (!_thread.joinable())
+    {
+      _receive_all_replies = _arg;
+    }
   }
     
   void client::stream::start()
@@ -643,8 +662,15 @@ namespace twitter {
   void client::stream::run()
   {
     curl::curl_easy conn;
-    std::string url = "https://userstream.twitter.com/1.1/user.json";
+    std::ostringstream urlstr;
+    urlstr << "https://userstream.twitter.com/1.1/user.json";
     
+    if (_receive_all_replies)
+    {
+      urlstr << "?replies=all";
+    }
+    
+    std::string url = urlstr.str();
     curl::curl_header headers;
     std::string oauth_header = _client._oauth_client->getFormattedHttpHeader(OAuth::Http::Get, url, "");
     if (!oauth_header.empty())
@@ -768,13 +794,9 @@ namespace twitter {
             _backoff_amount = std::chrono::milliseconds(0);
           }
           
+          if (_notify)
           {
-            std::lock_guard<std::mutex> _notify_lock(_notify_mutex);
-        
-            if (_notify)
-            {
-              _notify(n);
-            }
+            _notify(n);
           }
                     
           _buffer = "";
