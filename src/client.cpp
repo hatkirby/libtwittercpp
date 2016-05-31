@@ -321,6 +321,22 @@ namespace twitter {
     return _current_user;
   }
   
+  configuration client::getConfiguration()
+  {
+    if (!_configuration || (difftime(time(NULL), _last_configuration_update) > 60*60*24))
+    {
+      long response_code;
+      std::string response_data;
+      if (performGet("https://api.twitter.com/1.1/help/configuration.json", response_code, response_data))
+      {
+        _configuration = configuration(response_data);
+        _last_configuration_update = time(NULL);
+      }
+    }
+    
+    return _configuration;
+  }
+  
   response client::getFriends(std::set<user_id>& _ret)
   {
     if (!_current_user)

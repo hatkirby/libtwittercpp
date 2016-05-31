@@ -16,5 +16,6 @@ namespace twitter {
 #include "notification.h"
 #include "list.h"
 #include "direct_message.h"
+#include "configuration.h"
 
 #endif /* end of include guard: TWITTER_H_AC7A7666 */

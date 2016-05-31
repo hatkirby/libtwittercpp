@@ -11,6 +11,7 @@
 #include <set>
 #include <ctime>
 #include <chrono>
+#include "configuration.h"
 
 namespace OAuth {
   class Consumer;
@@ -81,6 +82,8 @@ namespace twitter {
       
       const user& getUser() const;
       
+      configuration getConfiguration();
+      
       // NOTE: stream setting function calls will fail silently when stream is running
       void setUserStreamNotifyCallback(stream::notify_callback callback);
       void setUserStreamReceiveAllReplies(bool _arg);
@@ -98,6 +101,9 @@ namespace twitter {
       
       user _current_user;
       stream _user_stream{*this};
+      
+      configuration _configuration;
+      time_t _last_configuration_update;
       
       bool performGet(std::string url, long& response_code, std::string& result);
       bool performPost(std::string url, std::string dataStr, long& response_code, std::string& result);
