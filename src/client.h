@@ -80,7 +80,7 @@ namespace twitter {
       response getFriends(std::set<user_id>& result);
       response getFollowers(std::set<user_id>& result);
       
-      const user& getUser() const;
+      response getUser(user& result);
       
       configuration getConfiguration();
       

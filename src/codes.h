@@ -21,7 +21,8 @@ namespace twitter {
     write_restricted,
     bad_length,
     unknown_error,
-    invalid_media
+    invalid_media,
+    invalid_response
   };
   
 };

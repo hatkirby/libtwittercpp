@@ -105,7 +105,12 @@ namespace twitter {
     std::string response_data;
     if (performGet(url, response_code, response_data) && (response_code == 200))
     {
-      _current_user = user(response_data);
+      try {
+        _current_user = user(response_data);
+      } catch (std::invalid_argument e)
+      {
+        // Ignore
+      }
     }
   }
   
@@ -145,8 +150,13 @@ namespace twitter {
     
     if (response_code == 200)
     {
-      result = tweet(response_data);
-      return response::ok;
+      try {
+        result = tweet(response_data);
+        return response::ok;
+      } catch (std::invalid_argument e)
+      {
+        return response::invalid_response;
+      }
     } else {
       return codeForError(response_code, response_data);
     }
@@ -186,7 +196,14 @@ namespace twitter {
       return codeForError(response_code, response_data);
     }
     
-    auto response_json = json::parse(response_data);
+    json response_json;
+    try {
+      response_json = json::parse(response_data);
+    } catch (std::invalid_argument e)
+    {
+      return response::invalid_response;
+    }
+    
     media_id = response_json["media_id"].get<long>();
 
     curl_httppost* append_form_post = nullptr;
@@ -226,7 +243,13 @@ namespace twitter {
       return codeForError(response_code, response_data);
     }
     
-    response_json = json::parse(response_data);
+    try {
+      response_json = json::parse(response_data);
+    } catch (std::invalid_argument e)
+    {
+      return response::invalid_response;
+    }
+    
     if (response_json.find("processing_info") != response_json.end())
     {
       std::stringstream datastr;
@@ -244,7 +267,13 @@ namespace twitter {
           return codeForError(response_code, response_data);
         }
         
-        response_json = json::parse(response_data);
+        try {
+          response_json = json::parse(response_data);
+        } catch (std::invalid_argument e)
+        {
+          return response::invalid_response;
+        }
+        
         if (response_json["processing_info"]["state"] == "succeeded")
         {
           break;
@@ -316,9 +345,26 @@ namespace twitter {
     return unfollow(toUnfollow.getID());
   }
   
-  const user& client::getUser() const
+  response client::getUser(user& result)
   {
-    return _current_user;
+    if (!_current_user)
+    {
+      std::string url = "https://api.twitter.com/1.1/account/verify_credentials.json";
+      long response_code;
+      std::string response_data;
+      if (performGet(url, response_code, response_data) && (response_code == 200))
+      {
+        try {
+          _current_user = user(response_data);
+        } catch (std::invalid_argument e)
+        {
+          return response::invalid_response;
+        }
+      }
+    }
+    
+    result = _current_user;
+    return response::ok;
   }
   
   configuration client::getConfiguration()
@@ -366,7 +412,14 @@ namespace twitter {
   
       if (response_code == 200)
       {
-        json rjs = json::parse(response_data);
+        json rjs;
+        try {
+          rjs = json::parse(response_data);
+        } catch (std::invalid_argument e)
+        {
+          return response::invalid_response;
+        }
+        
         cursor = rjs.at("next_cursor");
         result.insert(std::begin(rjs.at("ids")), std::end(rjs.at("ids")));
       } else {
@@ -408,7 +461,14 @@ namespace twitter {
   
       if (response_code == 200)
       {
-        json rjs = json::parse(response_data);
+        json rjs;
+        try {
+          rjs = json::parse(response_data);
+        } catch (std::invalid_argument e)
+        {
+          return response::invalid_response;
+        }
+        
         cursor = rjs.at("next_cursor");
         result.insert(std::begin(rjs.at("ids")), std::end(rjs.at("ids")));
       } else {
@@ -560,7 +620,13 @@ namespace twitter {
   
   response client::codeForError(int response_code, std::string response_data) const
   {
-    auto response_json = json::parse(response_data);
+    json response_json;
+    try {
+      response_json = json::parse(response_data);
+    } catch (std::invalid_argument e)
+    {
+      return response::invalid_response;
+    }
     
     std::set<int> error_codes;
     if (response_json.find("errors") != response_json.end())
