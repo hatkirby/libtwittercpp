@@ -19,240 +19,245 @@ namespace twitter {
   
   notification::notification(std::string data, const user& current_user)
   {
-    auto _data = json::parse(data);
+    try {
+      auto _data = json::parse(data);
     
-    if (_data.find("in_reply_to_status_id") != _data.end())
-    {
-      _type = type::tweet;
+      if (_data.find("in_reply_to_status_id") != _data.end())
+      {
+        _type = type::tweet;
       
-      new(&_tweet) tweet(data);
-    } else if (_data.find("event") != _data.end())
-    {
-      std::string event = _data.at("event");
-      user source(_data.at("source").dump());
-      user target(_data.at("target").dump());
+        new(&_tweet) tweet(data);
+      } else if (_data.find("event") != _data.end())
+      {
+        std::string event = _data.at("event");
+        user source(_data.at("source").dump());
+        user target(_data.at("target").dump());
       
-      if (event == "user_update")
-      {
-        _type = type::update_user;
-        
-        new(&_user) user(source);
-      } else if (event == "block")
-      {
-        _type = type::block;
-        
-        new(&_user) user(target);
-      } else if (event == "unblock")
-      {
-        _type = type::unblock;
-        
-        new(&_user) user(target);
-      } else if (event == "favorite")
-      {
-        new(&_user_and_tweet._tweet) tweet(_data.at("target_object").dump());
-        
-        if (current_user == source)
+        if (event == "user_update")
         {
-          _type = type::favorite;
-          
-          new(&_user_and_tweet._user) user(target);
-        } else {
-          _type = type::favorited;
-          
-          new(&_user_and_tweet._user) user(source);
-        }
-      } else if (event == "unfavorite")
-      {
-        new(&_user_and_tweet._tweet) tweet(_data.at("target_object").dump());
+          _type = type::update_user;
         
-        if (current_user == source)
-        {
-          _type = type::unfavorite;
-          
-          new(&_user_and_tweet._user) user(target);
-        } else {
-          _type = type::unfavorited;
-          
-          new(&_user_and_tweet._user) user(source);
-        }
-      } else if (event == "follow")
-      {
-        if (current_user == source)
-        {
-          _type = type::follow;
-          
-          new(&_user) user(target);
-        } else {
-          _type = type::followed;
-          
           new(&_user) user(source);
-        }
-      } else if (event == "unfollow")
-      {
-        _type = type::unfollow;
-        
-        new(&_user) user(target);
-      } else if (event == "list_created")
-      {
-        _type = type::list_created;
-        
-        new(&_list) list(_data.at("target_object").dump());
-      } else if (event == "list_destroyed")
-      {
-        _type = type::list_destroyed;
-        
-        new(&_list) list(_data.at("target_object").dump());
-      } else if (event == "list_updated")
-      {
-        _type = type::list_updated;
-        
-        new(&_list) list(_data.at("target_object").dump());
-      } else if (event == "list_member_added")
-      {
-        new(&_user_and_list._list) list(_data.at("target_object").dump());
-        
-        if (current_user == source)
+        } else if (event == "block")
         {
-          _type = type::list_add;
-          
-          new(&_user_and_list._user) user(target);
-        } else {
-          _type = type::list_added;
-          
-          new(&_user_and_list._user) user(source);
-        }
-      } else if (event == "list_member_removed")
-      {
-        new(&_user_and_list._list) list(_data.at("target_object").dump());
+          _type = type::block;
         
-        if (current_user == source)
+          new(&_user) user(target);
+        } else if (event == "unblock")
         {
-          _type = type::list_remove;
-          
-          new(&_user_and_list._user) user(target);
-        } else {
-          _type = type::list_removed;
-          
-          new(&_user_and_list._user) user(source);
-        }
-      } else if (event == "list_member_subscribe")
-      {
-        new(&_user_and_list._list) list(_data.at("target_object").dump());
+          _type = type::unblock;
         
-        if (current_user == source)
+          new(&_user) user(target);
+        } else if (event == "favorite")
         {
-          _type = type::list_subscribe;
-          
-          new(&_user_and_list._user) user(target);
-        } else {
-          _type = type::list_subscribed;
-          
-          new(&_user_and_list._user) user(source);
-        }
-      } else if (event == "list_member_unsubscribe")
-      {
-        new(&_user_and_list._list) list(_data.at("target_object").dump());
+          new(&_user_and_tweet._tweet) tweet(_data.at("target_object").dump());
         
-        if (current_user == source)
+          if (current_user == source)
+          {
+            _type = type::favorite;
+          
+            new(&_user_and_tweet._user) user(target);
+          } else {
+            _type = type::favorited;
+          
+            new(&_user_and_tweet._user) user(source);
+          }
+        } else if (event == "unfavorite")
         {
-          _type = type::list_unsubscribe;
-          
-          new(&_user_and_list._user) user(target);
-        } else {
-          _type = type::list_unsubscribed;
-          
-          new(&_user_and_list._user) user(source);
-        }
-      } else if (event == "quoted_tweet")
-      {
-        _type = type::quoted;
+          new(&_user_and_tweet._tweet) tweet(_data.at("target_object").dump());
         
-        new(&_user_and_tweet._user) user(source);
-        new(&_user_and_tweet._tweet) tweet(_data.at("target_object").dump());
-      }
-    } else if (_data.find("warning") != _data.end())
-    {
-      new(&_warning) std::string(_data.at("warning").at("message").get<std::string>());
+          if (current_user == source)
+          {
+            _type = type::unfavorite;
+          
+            new(&_user_and_tweet._user) user(target);
+          } else {
+            _type = type::unfavorited;
+          
+            new(&_user_and_tweet._user) user(source);
+          }
+        } else if (event == "follow")
+        {
+          if (current_user == source)
+          {
+            _type = type::follow;
+          
+            new(&_user) user(target);
+          } else {
+            _type = type::followed;
+          
+            new(&_user) user(source);
+          }
+        } else if (event == "unfollow")
+        {
+          _type = type::unfollow;
+        
+          new(&_user) user(target);
+        } else if (event == "list_created")
+        {
+          _type = type::list_created;
+        
+          new(&_list) list(_data.at("target_object").dump());
+        } else if (event == "list_destroyed")
+        {
+          _type = type::list_destroyed;
+        
+          new(&_list) list(_data.at("target_object").dump());
+        } else if (event == "list_updated")
+        {
+          _type = type::list_updated;
+        
+          new(&_list) list(_data.at("target_object").dump());
+        } else if (event == "list_member_added")
+        {
+          new(&_user_and_list._list) list(_data.at("target_object").dump());
+        
+          if (current_user == source)
+          {
+            _type = type::list_add;
+          
+            new(&_user_and_list._user) user(target);
+          } else {
+            _type = type::list_added;
+          
+            new(&_user_and_list._user) user(source);
+          }
+        } else if (event == "list_member_removed")
+        {
+          new(&_user_and_list._list) list(_data.at("target_object").dump());
+        
+          if (current_user == source)
+          {
+            _type = type::list_remove;
+          
+            new(&_user_and_list._user) user(target);
+          } else {
+            _type = type::list_removed;
+          
+            new(&_user_and_list._user) user(source);
+          }
+        } else if (event == "list_member_subscribe")
+        {
+          new(&_user_and_list._list) list(_data.at("target_object").dump());
+        
+          if (current_user == source)
+          {
+            _type = type::list_subscribe;
+          
+            new(&_user_and_list._user) user(target);
+          } else {
+            _type = type::list_subscribed;
+          
+            new(&_user_and_list._user) user(source);
+          }
+        } else if (event == "list_member_unsubscribe")
+        {
+          new(&_user_and_list._list) list(_data.at("target_object").dump());
+        
+          if (current_user == source)
+          {
+            _type = type::list_unsubscribe;
+          
+            new(&_user_and_list._user) user(target);
+          } else {
+            _type = type::list_unsubscribed;
+          
+            new(&_user_and_list._user) user(source);
+          }
+        } else if (event == "quoted_tweet")
+        {
+          _type = type::quoted;
+        
+          new(&_user_and_tweet._user) user(source);
+          new(&_user_and_tweet._tweet) tweet(_data.at("target_object").dump());
+        }
+      } else if (_data.find("warning") != _data.end())
+      {
+        new(&_warning) std::string(_data.at("warning").at("message").get<std::string>());
       
-      if (_data.at("warning").at("code") == "FALLING_BEHIND")
+        if (_data.at("warning").at("code") == "FALLING_BEHIND")
+        {
+          _type = type::stall;
+        } else if (_data.at("warning").at("code") == "FOLLOWS_OVER_LIMIT")
+        {
+          _type = type::follow_limit;
+        } else {
+          _type = type::unknown_warning;
+        }
+      } else if (_data.find("delete") != _data.end())
       {
-        _type = type::stall;
-      } else if (_data.at("warning").at("code") == "FOLLOWS_OVER_LIMIT")
+        _type = type::deletion;
+      
+        _user_id_and_tweet_id._tweet_id = _data.at("delete").at("status").at("id");
+        _user_id_and_tweet_id._user_id = _data.at("delete").at("status").at("user_id");
+      } else if (_data.find("scrub_geo") != _data.end())
       {
-        _type = type::follow_limit;
+        _type = type::scrub_location;
+      
+        _user_id_and_tweet_id._tweet_id = _data.at("scrub_geo").at("up_to_status_id");
+        _user_id_and_tweet_id._user_id = _data.at("scrub_geo").at("user_id");
+      } else if (_data.find("limit") != _data.end())
+      {
+        _type = type::limit;
+      
+        _limit = _data.at("limit").at("track");
+      } else if (_data.find("status_withheld") != _data.end())
+      {
+        _type = type::withhold_status;
+      
+        _withhold_status._user_id = _data.at("status_withheld").at("user_id");
+        _withhold_status._tweet_id = _data.at("status_withheld").at("id");
+      
+        new(&_withhold_status._countries) std::vector<std::string>();
+        for (auto s : _data.at("status_withheld").at("withheld_in_countries"))
+        {
+          _withhold_status._countries.push_back(s);
+        }
+      } else if (_data.find("user_withheld") != _data.end())
+      {
+        _type = type::withhold_user;
+      
+        _withhold_user._user_id = _data.at("user_withheld").at("id");
+      
+        new(&_withhold_user._countries) std::vector<std::string>();
+        for (auto s : _data.at("user_withheld").at("withheld_in_countries"))
+        {
+          _withhold_user._countries.push_back(s);
+        }
+      } else if (_data.find("disconnect") != _data.end())
+      {
+        _type = type::disconnect;
+      
+        switch (_data.at("disconnect").at("code").get<int>())
+        {
+          case 1: _disconnect = disconnect_code::shutdown; break;
+          case 2: _disconnect = disconnect_code::duplicate; break;
+          case 4: _disconnect = disconnect_code::stall; break;
+          case 5: _disconnect = disconnect_code::normal; break;
+          case 6: _disconnect = disconnect_code::token_revoked; break;
+          case 7: _disconnect = disconnect_code::admin_logout; break;
+          case 9: _disconnect = disconnect_code::limit; break;
+          case 10: _disconnect = disconnect_code::exception; break;
+          case 11: _disconnect = disconnect_code::broker; break;
+          case 12: _disconnect = disconnect_code::load; break;
+          default: _disconnect = disconnect_code::unknown;
+        }
+      } else if (_data.find("friends") != _data.end())
+      {
+        _type = type::friends;
+      
+        new(&_friends) std::set<user_id>(_data.at("friends").begin(), _data.at("friends").end());
+      } else if (_data.find("direct_message") != _data.end())
+      {
+        _type = type::direct;
+      
+        new(&_direct_message) direct_message(_data.at("direct_message").dump());
       } else {
-        _type = type::unknown_warning;
+        _type = type::unknown;
       }
-    } else if (_data.find("delete") != _data.end())
+    } catch (std::invalid_argument e)
     {
-      _type = type::deletion;
-      
-      _user_id_and_tweet_id._tweet_id = _data.at("delete").at("status").at("id");
-      _user_id_and_tweet_id._user_id = _data.at("delete").at("status").at("user_id");
-    } else if (_data.find("scrub_geo") != _data.end())
-    {
-      _type = type::scrub_location;
-      
-      _user_id_and_tweet_id._tweet_id = _data.at("scrub_geo").at("up_to_status_id");
-      _user_id_and_tweet_id._user_id = _data.at("scrub_geo").at("user_id");
-    } else if (_data.find("limit") != _data.end())
-    {
-      _type = type::limit;
-      
-      _limit = _data.at("limit").at("track");
-    } else if (_data.find("status_withheld") != _data.end())
-    {
-      _type = type::withhold_status;
-      
-      _withhold_status._user_id = _data.at("status_withheld").at("user_id");
-      _withhold_status._tweet_id = _data.at("status_withheld").at("id");
-      
-      new(&_withhold_status._countries) std::vector<std::string>();
-      for (auto s : _data.at("status_withheld").at("withheld_in_countries"))
-      {
-        _withhold_status._countries.push_back(s);
-      }
-    } else if (_data.find("user_withheld") != _data.end())
-    {
-      _type = type::withhold_user;
-      
-      _withhold_user._user_id = _data.at("user_withheld").at("id");
-      
-      new(&_withhold_user._countries) std::vector<std::string>();
-      for (auto s : _data.at("user_withheld").at("withheld_in_countries"))
-      {
-        _withhold_user._countries.push_back(s);
-      }
-    } else if (_data.find("disconnect") != _data.end())
-    {
-      _type = type::disconnect;
-      
-      switch (_data.at("disconnect").at("code").get<int>())
-      {
-        case 1: _disconnect = disconnect_code::shutdown; break;
-        case 2: _disconnect = disconnect_code::duplicate; break;
-        case 4: _disconnect = disconnect_code::stall; break;
-        case 5: _disconnect = disconnect_code::normal; break;
-        case 6: _disconnect = disconnect_code::token_revoked; break;
-        case 7: _disconnect = disconnect_code::admin_logout; break;
-        case 9: _disconnect = disconnect_code::limit; break;
-        case 10: _disconnect = disconnect_code::exception; break;
-        case 11: _disconnect = disconnect_code::broker; break;
-        case 12: _disconnect = disconnect_code::load; break;
-        default: _disconnect = disconnect_code::unknown;
-      }
-    } else if (_data.find("friends") != _data.end())
-    {
-      _type = type::friends;
-      
-      new(&_friends) std::set<user_id>(_data.at("friends").begin(), _data.at("friends").end());
-    } else if (_data.find("direct_message") != _data.end())
-    {
-      _type = type::direct;
-      
-      new(&_direct_message) direct_message(_data.at("direct_message").dump());
-    } else {
-      _type = type::unknown;
+      _type = type::invalid;
     }
   }
   
