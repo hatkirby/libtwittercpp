@@ -661,7 +661,6 @@ namespace twitter {
   
   void client::stream::run()
   {
-    curl::curl_easy conn;
     std::ostringstream urlstr;
     urlstr << "https://userstream.twitter.com/1.1/user.json";
     
@@ -671,29 +670,31 @@ namespace twitter {
     }
     
     std::string url = urlstr.str();
-    curl::curl_header headers;
-    std::string oauth_header = _client._oauth_client->getFormattedHttpHeader(OAuth::Http::Get, url, "");
-    if (!oauth_header.empty())
-    {
-      headers.add(oauth_header);
-    }
-    
-    conn.add<CURLOPT_WRITEFUNCTION>(client_stream_write_callback_wrapper);
-    conn.add<CURLOPT_WRITEDATA>(this);
-    conn.add<CURLOPT_HEADERFUNCTION>(nullptr);
-    conn.add<CURLOPT_HEADERDATA>(nullptr);
-    conn.add<CURLOPT_XFERINFOFUNCTION>(client_stream_progress_callback_wrapper);
-    conn.add<CURLOPT_XFERINFODATA>(this);
-    conn.add<CURLOPT_NOPROGRESS>(0);
-    //conn.add<CURLOPT_VERBOSE>(1);
-    //conn.add<CURLOPT_DEBUGFUNCTION>(my_trace);
-    conn.add<CURLOPT_URL>(url.c_str());
-    conn.add<CURLOPT_HTTPHEADER>(headers.get());
     
     _backoff_type = backoff::none;
     _backoff_amount = std::chrono::milliseconds(0);
     for (;;)
     {
+      curl::curl_easy conn;
+      curl::curl_header headers;
+      std::string oauth_header = _client._oauth_client->getFormattedHttpHeader(OAuth::Http::Get, url, "");
+      if (!oauth_header.empty())
+      {
+        headers.add(oauth_header);
+      }
+    
+      conn.add<CURLOPT_WRITEFUNCTION>(client_stream_write_callback_wrapper);
+      conn.add<CURLOPT_WRITEDATA>(this);
+      conn.add<CURLOPT_HEADERFUNCTION>(nullptr);
+      conn.add<CURLOPT_HEADERDATA>(nullptr);
+      conn.add<CURLOPT_XFERINFOFUNCTION>(client_stream_progress_callback_wrapper);
+      conn.add<CURLOPT_XFERINFODATA>(this);
+      conn.add<CURLOPT_NOPROGRESS>(0);
+      //conn.add<CURLOPT_VERBOSE>(1);
+      //conn.add<CURLOPT_DEBUGFUNCTION>(my_trace);
+      conn.add<CURLOPT_URL>(url.c_str());
+      conn.add<CURLOPT_HTTPHEADER>(headers.get());
+      
       bool failure = false;
       try {
         conn.perform();
