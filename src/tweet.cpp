@@ -126,6 +126,11 @@ namespace twitter {
     return _mentions;
   }
   
+  std::string tweet::getURL() const
+  {
+    return "https://twitter.com/" + _author.getScreenName() + "/statuses/" + std::to_string(_id);
+  }
+  
   tweet::operator bool() const
   {
     return _valid;

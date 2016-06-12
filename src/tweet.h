@@ -27,6 +27,7 @@ namespace twitter {
       bool isRetweet() const;
       tweet getRetweet() const;
       std::vector<std::pair<user_id, std::string>> getMentions() const;
+      std::string getURL() const;
       
       operator bool() const;
       
