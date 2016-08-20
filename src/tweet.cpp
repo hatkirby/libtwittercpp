@@ -66,4 +66,15 @@ namespace twitter {
     return *_author == _client.getUser();
   }
   
+  std::string tweet::getURL() const
+  {
+    std::ostringstream urlstr;
+    urlstr << "https://twitter.com";
+    urlstr << _author->getScreenName();
+    urlstr << "/statuses/";
+    urlstr << _id;
+    
+    return urlstr.str();
+  }
+  
 };

@@ -39,7 +39,7 @@ namespace twitter {
       {
         return *_author;
       }
-      
+
       bool isRetweet() const
       {
         return _is_retweet;
@@ -62,6 +62,8 @@ namespace twitter {
       tweet reply(std::string message, std::list<long> media_ids = {}) const;
       
       bool isMyTweet() const;
+      
+      std::string getURL() const;
       
     private:
       

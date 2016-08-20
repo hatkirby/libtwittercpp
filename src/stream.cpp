@@ -101,55 +101,55 @@ namespace twitter {
   
   void stream::run(std::string url)
   {
-    curl::curl_ios<stream> ios(this, [] (void* contents, size_t size, size_t nmemb, void* userp) {
-      return static_cast<stream*>(userp)->write(static_cast<char*>(contents), size, nmemb);
-    });
-    
-    curl::curl_easy conn(ios);
-    curl::curl_header headers;
-    std::string oauth_header;
-    
-    try
-    {
-      oauth_header = _client._oauth_client->getFormattedHttpHeader(OAuth::Http::Get, url, "");
-      
-      if (!oauth_header.empty())
-      {
-        headers.add(oauth_header);
-      }
-    } catch (const OAuth::ParseError& error)
-    {
-      std::cout << "Error generating OAuth header:" << std::endl;
-      std::cout << error.what() << std::endl;
-      std::cout << "This is likely due to a malformed URL." << std::endl;
-  
-      assert(false);
-    }
-    
-    try
-    {
-      conn.add<CURLOPT_HEADERFUNCTION>(nullptr);
-      conn.add<CURLOPT_HEADERDATA>(nullptr);
-      conn.add<CURLOPT_XFERINFOFUNCTION>([] (void* cdata, curl_off_t, curl_off_t, curl_off_t, curl_off_t) {
-        return static_cast<stream*>(cdata)->progress();
-      });
-      conn.add<CURLOPT_XFERINFODATA>(this);
-      conn.add<CURLOPT_NOPROGRESS>(0);
-      //conn.add<CURLOPT_VERBOSE>(1);
-      //conn.add<CURLOPT_DEBUGFUNCTION>(my_trace);
-      conn.add<CURLOPT_URL>(url.c_str());
-      conn.add<CURLOPT_HTTPHEADER>(headers.get());
-    } catch (const curl::curl_exception& error)
-    {
-      error.print_traceback();
-      
-      assert(false);
-    }
-    
     _backoff_type = backoff::none;
     _backoff_amount = std::chrono::milliseconds(0);
     for (;;)
     {
+      curl::curl_ios<stream> ios(this, [] (void* contents, size_t size, size_t nmemb, void* userp) {
+        return static_cast<stream*>(userp)->write(static_cast<char*>(contents), size, nmemb);
+      });
+    
+      curl::curl_easy conn(ios);
+      curl::curl_header headers;
+      std::string oauth_header;
+    
+      try
+      {
+        oauth_header = _client._oauth_client->getFormattedHttpHeader(OAuth::Http::Get, url, "");
+      
+        if (!oauth_header.empty())
+        {
+          headers.add(oauth_header);
+        }
+      } catch (const OAuth::ParseError& error)
+      {
+        std::cout << "Error generating OAuth header:" << std::endl;
+        std::cout << error.what() << std::endl;
+        std::cout << "This is likely due to a malformed URL." << std::endl;
+  
+        assert(false);
+      }
+    
+      try
+      {
+        conn.add<CURLOPT_HEADERFUNCTION>(nullptr);
+        conn.add<CURLOPT_HEADERDATA>(nullptr);
+        conn.add<CURLOPT_XFERINFOFUNCTION>([] (void* cdata, curl_off_t, curl_off_t, curl_off_t, curl_off_t) {
+          return static_cast<stream*>(cdata)->progress();
+        });
+        conn.add<CURLOPT_XFERINFODATA>(this);
+        conn.add<CURLOPT_NOPROGRESS>(0);
+        //conn.add<CURLOPT_VERBOSE>(1);
+        //conn.add<CURLOPT_DEBUGFUNCTION>(my_trace);
+        conn.add<CURLOPT_URL>(url.c_str());
+        conn.add<CURLOPT_HTTPHEADER>(headers.get());
+      } catch (const curl::curl_exception& error)
+      {
+        error.print_traceback();
+      
+        assert(false);
+      }
+      
       bool failure = false;
       try
       {
