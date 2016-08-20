@@ -1,51 +1,43 @@
 #include "user.h"
 #include <json.hpp>
-
-using nlohmann::json;
+#include "codes.h"
+#include "client.h"
 
 namespace twitter {
   
-  user::user() : _valid(false)
+  user::user(const client& tclient, std::string data) try
+    : _client(tclient)
   {
-    
+    auto json = nlohmann::json::parse(data);
+    _id = json["id"].get<user_id>();
+    _screen_name = json["screen_name"].get<std::string>();
+    _name = json["name"].get<std::string>();
+  } catch (const std::invalid_argument& error)
+  {
+    std::throw_with_nested(malformed_object("user", data));
+  } catch (const std::domain_error& error)
+  {
+    std::throw_with_nested(malformed_object("user", data));
   }
   
-  user::user(std::string data) : _valid(true)
+  std::set<user_id> user::getFriends() const
   {
-    auto _data = json::parse(data);
-    _id = _data.at("id");
-    _screen_name = _data.at("screen_name");
-    _name = _data.at("name");
+    return _client.getFriends(_id);
   }
   
-  user_id user::getID() const
+  std::set<user_id> user::getFollowers() const
   {
-    return _id;
+    return _client.getFollowers(_id);
   }
   
-  std::string user::getScreenName() const
+  void user::follow() const
   {
-    return _screen_name;
+    _client.follow(_id);
   }
   
-  std::string user::getName() const
+  void user::unfollow() const
   {
-    return _name;
-  }
-  
-  user::operator bool() const
-  {
-    return _valid;
-  }
-  
-  bool user::operator==(const user& other) const
-  {
-    return _id == other._id;
-  }
-  
-  bool user::operator!=(const user& other) const
-  {
-    return _id != other._id;
+    _client.unfollow(_id);
   }
 
 };

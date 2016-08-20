@@ -6,9 +6,9 @@
 namespace twitter {
   
   class list {
-    public:
-      list();
-      list(std::string data);
+  public:
+    
+    explicit list(std::string data);
   };
   
 };

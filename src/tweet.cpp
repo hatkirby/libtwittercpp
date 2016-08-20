@@ -1,134 +1,69 @@
 #include "tweet.h"
 #include <json.hpp>
-#include <cassert>
-
-using nlohmann::json;
+#include "util.h"
+#include "codes.h"
+#include "client.h"
 
 namespace twitter {
   
-  tweet::tweet() : _valid(false)
+  tweet::tweet(const client& tclient, std::string data) try
+    : _client(tclient)
   {
+    auto json = nlohmann::json::parse(data);
+    _id = json["id"].get<tweet_id>();
+    _text = json["text"].get<std::string>();
+    _author = make_unique<user>(_client, json["user"].dump());
     
-  }
-  
-  tweet::tweet(std::string data) : _valid(true)
-  {
-    auto _data = json::parse(data);
-    _id = _data.at("id");
-    _text = _data.at("text");
-    _author = user(_data.at("user").dump());
-    
-    if (_data.find("retweeted_status") != _data.end())
+    if (!json["retweeted_status"].is_null())
     {
       _is_retweet = true;
       
-      std::string retweet = _data.at("retweeted_status").dump();
-      _retweeted_status = new tweet(retweet);
+      _retweeted_status = make_unique<tweet>(_client, json["retweeted_status"].dump());
     }
     
-    if (_data.find("entities") != _data.end())
+    if (!json["entities"].is_null())
     {
-      auto _entities = _data.at("entities");
-      if (_entities.find("user_mentions") != _entities.end())
+      auto entities = json["entities"];
+      if (!entities["user_mentions"].is_null())
       {
-        for (auto _mention : _entities.at("user_mentions"))
+        for (auto mention : entities["user_mentions"])
         {
-          _mentions.push_back(std::make_pair(_mention.at("id"), _mention.at("screen_name").get<std::string>()));
+          _mentions.push_back(std::make_pair(mention["id"].get<user_id>(), mention["screen_name"].get<std::string>()));
         }
       }
     }
+  } catch (const std::invalid_argument& error)
+  {
+    std::throw_with_nested(malformed_object("tweet", data));
+  } catch (const std::domain_error& error)
+  {
+    std::throw_with_nested(malformed_object("tweet", data));
   }
   
-  tweet::tweet(const tweet& other)
+  std::string tweet::generateReplyPrefill() const
   {
-    _valid = other._valid;
-    _id = other._id;
-    _text = other._text;
-    _author = other._author;
-    _is_retweet = other._is_retweet;
+    std::ostringstream output;
+    output << "@" << _author->getScreenName() << " ";
     
-    if (_is_retweet)
+    for (auto mention : _mentions)
     {
-      _retweeted_status = new tweet(*other._retweeted_status);
+      if ((mention.first != _author->getID()) && (mention.first != _client.getUser().getID()))
+      {
+        output << "@" << mention.second << " ";
+      }
     }
     
-    _mentions = other._mentions;
+    return output.str();
   }
   
-  tweet::tweet(tweet&& other) : tweet()
+  tweet tweet::reply(std::string message, std::list<long> media_ids) const
   {
-    swap(*this, other);
+    return _client.replyToTweet(message, _id, media_ids);
   }
   
-  tweet::~tweet()
+  bool tweet::isMyTweet() const
   {
-    if (_is_retweet)
-    {
-      delete _retweeted_status;
-    }
-  }
-  
-  tweet& tweet::operator=(tweet other)
-  {
-    swap(*this, other);
-    
-    return *this;
-  }
-
-  void swap(tweet& first, tweet& second)
-  {
-    std::swap(first._valid, second._valid);
-    std::swap(first._id, second._id);
-    std::swap(first._text, second._text);
-    std::swap(first._author, second._author);
-    std::swap(first._is_retweet, second._is_retweet);
-    std::swap(first._retweeted_status, second._retweeted_status);
-    std::swap(first._mentions, second._mentions);
-  }
-  
-  tweet_id tweet::getID() const
-  {
-    assert(_valid);
-    
-    return _id;
-  }
-  
-  std::string tweet::getText() const
-  {
-    assert(_valid);
-    
-    return _text;
-  }
-  
-  const user& tweet::getAuthor() const
-  {
-    assert(_valid);
-    
-    return _author;
-  }
-  
-  bool tweet::isRetweet() const
-  {
-    assert(_valid);
-    
-    return _is_retweet;
-  }
-  
-  tweet tweet::getRetweet() const
-  {
-    assert(_valid && _is_retweet);
-    
-    return *_retweeted_status;
-  }
-  
-  std::vector<std::pair<user_id, std::string>> tweet::getMentions() const
-  {
-    return _mentions;
-  }
-  
-  tweet::operator bool() const
-  {
-    return _valid;
+    return *_author == _client.getUser();
   }
   
 };

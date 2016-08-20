@@ -1,17 +1,15 @@
 #ifndef TWITTER_H_ABFF6A12
 #define TWITTER_H_ABFF6A12
 
+#include <list>
+#include <set>
+#include <ctime>
+#include <memory>
 #include "codes.h"
 #include "tweet.h"
 #include "auth.h"
-#include <list>
-#include <thread>
-#include <mutex>
-#include "notification.h"
-#include <set>
-#include <ctime>
-#include <chrono>
 #include "configuration.h"
+#include "util.h"
 
 namespace OAuth {
   class Consumer;
@@ -19,96 +17,39 @@ namespace OAuth {
   class Client;
 };
 
-class curl_httppost;
-
 namespace twitter {
   
   class client {
-    public:
-      class stream {
-        public:
-          typedef std::function<void(notification _notification)> notify_callback;
-          
-          stream(client& _client);
-          
-          void setNotifyCallback(notify_callback _n);
-          void setReceiveAllReplies(bool _arg);
-          
-          bool isRunning() const;
-          void start();
-          void stop();
-          
-          int progress();
-          size_t write(char* ptr, size_t size, size_t nmemb);
-          
-        private:
-          enum class backoff {
-            none,
-            network,
-            http,
-            rate_limit
-          };
-          
-          void run();
-          
-          client& _client;
-          notify_callback _notify;
-          bool _stop = false;
-          std::thread _thread;
-          std::mutex _running_mutex;
-          std::mutex _stall_mutex;
-          std::string _buffer;
-          time_t _last_write;
-          bool _established = false;
-          backoff _backoff_type = backoff::none;
-          std::chrono::milliseconds _backoff_amount;
-          bool _receive_all_replies = false;
-      };
-      
-      client(const auth& _auth);
-      ~client();
-      
-      response updateStatus(std::string msg, tweet& result, tweet in_response_to = tweet(), std::list<long> media_ids = {});
-      response uploadMedia(std::string media_type, const char* data, long data_length, long& media_id);
-      
-      response follow(user_id toFollow);
-      response follow(user toFollow);
-      
-      response unfollow(user_id toUnfollow);
-      response unfollow(user toUnfollow);
-      
-      response getFriends(std::set<user_id>& result);
-      response getFollowers(std::set<user_id>& result);
-      
-      response getUser(user& result);
-      
-      configuration getConfiguration();
-      
-      // NOTE: stream setting function calls will fail silently when stream is running
-      void setUserStreamNotifyCallback(stream::notify_callback callback);
-      void setUserStreamReceiveAllReplies(bool _arg);
-      void startUserStream();
-      void stopUserStream();
-      
-      std::string generateReplyPrefill(tweet t) const;
-      
-    private:
-      friend class stream;
-      
-      OAuth::Consumer* _oauth_consumer;
-      OAuth::Token* _oauth_token;
-      OAuth::Client* _oauth_client;
-      
-      user _current_user;
-      stream _user_stream{*this};
-      
-      configuration _configuration;
-      time_t _last_configuration_update;
-      
-      bool performGet(std::string url, long& response_code, std::string& result);
-      bool performPost(std::string url, std::string dataStr, long& response_code, std::string& result);
-      bool performMultiPost(std::string url, const curl_httppost* fields, long& response_code, std::string& result);
-      response codeForError(int httpcode, std::string errors) const;
+  public:
+    
+    client(const auth& _auth);
+    ~client();
+    
+    tweet updateStatus(std::string msg, std::list<long> media_ids = {}) const;
+    long uploadMedia(std::string media_type, const char* data, long data_length) const;
+    
+    tweet replyToTweet(std::string msg, tweet_id in_response_to, std::list<long> media_ids = {}) const;
+    std::set<user_id> getFriends(user_id id) const;
+    std::set<user_id> getFollowers(user_id id) const;
+    void follow(user_id toFollow) const;
+    void unfollow(user_id toUnfollow) const;
+    
+    const user& getUser() const;
+    
+    const configuration& getConfiguration() const;
+    
+  private:
+    
+    friend class stream;
+    
+    std::unique_ptr<OAuth::Consumer> _oauth_consumer;
+    std::unique_ptr<OAuth::Token> _oauth_token;
+    std::unique_ptr<OAuth::Client> _oauth_client;
+    
+    std::unique_ptr<user> _current_user;
+    
+    mutable std::unique_ptr<configuration> _configuration;
+    mutable time_t _last_configuration_update;
   };
   
 };

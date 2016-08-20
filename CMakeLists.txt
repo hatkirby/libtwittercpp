@@ -10,7 +10,7 @@ include_directories(vendor/liboauthcpp/include)
 add_subdirectory(vendor/curlcpp)
 include_directories(${CURLCPP_SOURCE_DIR}/include)
 
-add_library(twitter++ src/client.cpp src/auth.cpp src/tweet.cpp src/codes.cpp src/notification.cpp src/direct_message.cpp src/list.cpp src/user.cpp src/configuration.cpp)
+add_library(twitter++ src/client.cpp src/stream.cpp src/auth.cpp src/tweet.cpp src/codes.cpp src/notification.cpp src/direct_message.cpp src/list.cpp src/user.cpp src/configuration.cpp)
 set_property(TARGET twitter++ PROPERTY CXX_STANDARD 11)
 set_property(TARGET twitter++ PROPERTY CXX_STANDARD_REQUIRED ON)
 target_link_libraries(twitter++ oauthcpp curlcpp curl pthread)

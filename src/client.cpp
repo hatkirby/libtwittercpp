@@ -5,10 +5,8 @@
 #include <liboauthcpp/liboauthcpp.h>
 #include <curl_easy.h>
 #include <curl_header.h>
-#include "util.h"
 #include <json.hpp>
-
-using nlohmann::json;
+#include <thread>
 
 // These are here for debugging curl stuff
 
@@ -84,53 +82,266 @@ int my_trace(CURL *handle, curl_infotype type,
 
 namespace twitter {
   
-  int client_stream_progress_callback_wrapper(void* cdata, curl_off_t, curl_off_t, curl_off_t, curl_off_t)
+  class request
   {
-    return static_cast<client::stream*>(cdata)->progress();
-  }
+  public:
+    
+    explicit request(std::string url) try
+      : _ios(_output), _conn(_ios)
+    {
+      _conn.add<CURLOPT_URL>(url.c_str());
+    } catch (const curl::curl_easy_exception& error)
+    {
+      error.print_traceback();
+    
+      assert(false);
+    }
+    
+    std::string perform()
+    {
+      try
+      {
+        _conn.perform();
+      } catch (const curl::curl_easy_exception& error)
+      {
+        std::throw_with_nested(connection_error());
+      }
+    
+      int response_code = _conn.get_info<CURLINFO_RESPONSE_CODE>().get();
+      std::string result = _output.str();
+    
+      if (response_code / 100 != 2)
+      {
+        nlohmann::json response_json;
+      
+        try
+        {
+          response_json = nlohmann::json::parse(result);
+        } catch (const std::invalid_argument& e)
+        {
+          std::throw_with_nested(invalid_response(result));
+        }
+    
+        for (nlohmann::json& error : response_json["errors"])
+        {
+          int error_code;
+          std::string error_message;
+      
+          try
+          {
+            error_code = error["code"].get<int>();
+            error_message = error["message"].get<std::string>();
+          } catch (const std::domain_error& e)
+          {
+            std::throw_with_nested(invalid_response(result));
+          }
+      
+          switch (error_code)
+          {
+          case 32:
+          case 135:
+          case 215:
+            throw bad_auth(error_message);
+        
+          case 44:
+            throw invalid_media(error_message);
+        
+          case 64:
+            throw account_suspended(error_message);
+        
+          case 88:
+            throw rate_limit_exceeded(error_message);
+        
+          case 89:
+            throw bad_token(error_message);
+        
+          case 130:
+            throw server_overloaded(error_message);
+        
+          case 131:
+            throw server_error(error_message);
+      
+          case 185:
+            throw update_limit_exceeded(error_message);
+        
+          case 186:
+            throw bad_length(error_message);
+        
+          case 187:
+            throw duplicate_status(error_message);
+        
+          case 226:
+            throw suspected_spam(error_message);
+        
+          case 261:
+            throw write_restricted(error_message);
+          }
+        }
+
+        if (response_code == 429)
+        {
+          throw rate_limit_exceeded("HTTP 429 Too Many Requests");
+        } else if (response_code == 500)
+        {
+          throw server_error("HTTP 500 Internal Server Error");
+        } else if (response_code == 502)
+        {
+          throw server_unavailable("HTTP 502 Bad Gateway");
+        } else if (response_code == 503)
+        {
+          throw server_overloaded("HTTP 503 Service Unavailable");
+        } else if (response_code == 504)
+        {
+          throw server_timeout("HTTP 504 Gateway Timeout");
+        }
+      
+        throw unknown_error(response_code, result);
+      }
+    
+      return result;
+    }
+    
+  private:
+    
+    std::ostringstream _output;
+    curl::curl_ios<std::ostringstream> _ios;
+    
+  protected:
+    
+    curl::curl_easy _conn;
+  };
   
-  size_t client_stream_write_callback_wrapper(void* ptr, size_t size, size_t nmemb, void* cdata)
+  class get : public request
   {
-    return static_cast<client::stream*>(cdata)->write(static_cast<char*>(ptr), size, nmemb);
-  }
+  public:
+    
+    get(const OAuth::Client& oauth_client, std::string url) try
+      : request(url)
+    {
+      std::string oauth_header = oauth_client.getFormattedHttpHeader(OAuth::Http::Get, url, "");
+      if (!oauth_header.empty())
+      {
+        _headers.add(std::move(oauth_header));
+      }
   
+      _conn.add<CURLOPT_HTTPHEADER>(_headers.get());
+    } catch (const OAuth::ParseError& error)
+    {
+      std::cout << "Error generating OAuth header:" << std::endl;
+      std::cout << error.what() << std::endl;
+      std::cout << "This is likely due to a malformed URL." << std::endl;
+    
+      assert(false);
+    } catch (const curl::curl_easy_exception& error)
+    {
+      error.print_traceback();
+  
+      assert(false);
+    }
+    
+  private:
+    
+    curl::curl_header _headers;
+  };
+  
+  class post : public request
+  {
+  public:
+    
+    post(const OAuth::Client& oauth_client, std::string url, std::string datastr) try
+      : request(url)
+    {
+      std::string oauth_header = oauth_client.getFormattedHttpHeader(OAuth::Http::Post, url, datastr);
+      if (!oauth_header.empty())
+      {
+        _headers.add(std::move(oauth_header));
+      }
+  
+      _conn.add<CURLOPT_HTTPHEADER>(_headers.get());
+      _conn.add<CURLOPT_COPYPOSTFIELDS>(datastr.c_str());
+    } catch (const OAuth::ParseError& error)
+    {
+      std::cout << "Error generating OAuth header:" << std::endl;
+      std::cout << error.what() << std::endl;
+      std::cout << "This is likely due to a malformed URL." << std::endl;
+    
+      assert(false);
+    } catch (const curl::curl_easy_exception& error)
+    {
+      error.print_traceback();
+  
+      assert(false);
+    }
+    
+  private:
+    
+    curl::curl_header _headers;
+  };
+  
+  class multipost : public request
+  {
+  public:
+    
+    multipost(const OAuth::Client& oauth_client, std::string url, const curl_httppost* fields) try
+      : request(url)
+    {
+      std::string oauth_header = oauth_client.getFormattedHttpHeader(OAuth::Http::Post, url, "");
+      if (!oauth_header.empty())
+      {
+        _headers.add(std::move(oauth_header));
+      }
+  
+      _conn.add<CURLOPT_HTTPHEADER>(_headers.get());
+      _conn.add<CURLOPT_HTTPPOST>(fields);
+    } catch (const OAuth::ParseError& error)
+    {
+      std::cout << "Error generating OAuth header:" << std::endl;
+      std::cout << error.what() << std::endl;
+      std::cout << "This is likely due to a malformed URL." << std::endl;
+    
+      assert(false);
+    } catch (const curl::curl_easy_exception& error)
+    {
+      error.print_traceback();
+  
+      assert(false);
+    }
+    
+  private:
+    
+    curl::curl_header _headers;
+  };
+    
   client::client(const auth& _arg)
   {
-    _oauth_consumer = new OAuth::Consumer(_arg.getConsumerKey(), _arg.getConsumerSecret());
-    _oauth_token = new OAuth::Token(_arg.getAccessKey(), _arg.getAccessSecret());
-    _oauth_client = new OAuth::Client(_oauth_consumer, _oauth_token);
+    _oauth_consumer =
+      make_unique<OAuth::Consumer>(
+        _arg.getConsumerKey(),
+        _arg.getConsumerSecret());
+          
+    _oauth_token =
+      make_unique<OAuth::Token>(
+        _arg.getAccessKey(),
+        _arg.getAccessSecret());
+          
+    _oauth_client =
+      make_unique<OAuth::Client>(
+        _oauth_consumer.get(),
+        _oauth_token.get());
     
-    std::string url = "https://api.twitter.com/1.1/account/verify_credentials.json";
-    long response_code;
-    std::string response_data;
-    if (performGet(url, response_code, response_data) && (response_code == 200))
-    {
-      try {
-        _current_user = user(response_data);
-      } catch (std::invalid_argument e)
-      {
-        // Ignore
-      }
-    }
+    _current_user =
+      make_unique<user>(*this,
+        get(*_oauth_client,
+          "https://api.twitter.com/1.1/account/verify_credentials.json")
+        .perform());
   }
   
-  client::~client()
-  {
-    delete _oauth_client;
-    delete _oauth_token;
-    delete _oauth_consumer;
-  }
+  client::~client() = default;
   
-  response client::updateStatus(std::string msg, tweet& result, tweet in_response_to, std::list<long> media_ids)
+  tweet client::updateStatus(std::string msg, std::list<long> media_ids) const
   {
     std::stringstream datastrstream;
     datastrstream << "status=" << OAuth::PercentEncode(msg);
-    
-    if (in_response_to)
-    {
-      datastrstream << "&in_reply_to_status_id=";
-      datastrstream << in_response_to.getID();
-    }
     
     if (!media_ids.empty())
     {
@@ -138,45 +349,48 @@ namespace twitter {
       datastrstream << twitter::implode(std::begin(media_ids), std::end(media_ids), ",");
     }
     
-    std::string datastr = datastrstream.str();
-    std::string url = "https://api.twitter.com/1.1/statuses/update.json";
-    
-    long response_code;
-    std::string response_data;
-    if (!performPost(url, datastr, response_code, response_data))
-    {
-      return response::curl_error;
-    }
-    
-    if (response_code == 200)
-    {
-      try {
-        result = tweet(response_data);
-        return response::ok;
-      } catch (std::invalid_argument e)
-      {
-        return response::invalid_response;
-      }
-    } else {
-      return codeForError(response_code, response_data);
-    }
+    return tweet(*this,
+      post(*_oauth_client,
+        "https://api.twitter.com/1.1/statuses/update.json",
+        datastrstream.str())
+      .perform());
   }
   
-  response client::uploadMedia(std::string media_type, const char* data, long data_length, long& media_id)
+  tweet client::replyToTweet(std::string msg, tweet_id in_response_to, std::list<long> media_ids) const
+  {
+    std::stringstream datastrstream;
+    datastrstream << "status=" << OAuth::PercentEncode(msg);
+    datastrstream << "&in_reply_to_status_id=";
+    datastrstream << in_response_to;
+    
+    if (!media_ids.empty())
+    {
+      datastrstream << "&media_ids=";
+      datastrstream << twitter::implode(std::begin(media_ids), std::end(media_ids), ",");
+    }
+    
+    return tweet(*this,
+      post(*_oauth_client,
+        "https://api.twitter.com/1.1/statuses/update.json",
+        datastrstream.str())
+      .perform());
+  }
+  
+  long client::uploadMedia(std::string media_type, const char* data, long data_length) const try
   {
     curl::curl_form form;
+    std::string str_data_length = std::to_string(data_length);
     
     curl::curl_pair<CURLformoption, std::string> command_name(CURLFORM_COPYNAME, "command");
     curl::curl_pair<CURLformoption, std::string> command_cont(CURLFORM_COPYCONTENTS, "INIT");
     curl::curl_pair<CURLformoption, std::string> bytes_name(CURLFORM_COPYNAME, "total_bytes");
-    std::string str_data_length = std::to_string(data_length);
     curl::curl_pair<CURLformoption, std::string> bytes_cont(CURLFORM_COPYCONTENTS, str_data_length);
     curl::curl_pair<CURLformoption, std::string> type_name(CURLFORM_COPYNAME, "media_type");
     curl::curl_pair<CURLformoption, std::string> type_cont(CURLFORM_COPYCONTENTS, media_type);
     form.add(command_name, command_cont);
     form.add(bytes_name, bytes_cont);
     form.add(type_name, type_cont);
-    
+
     if (media_type == "image/gif")
     {
       curl::curl_pair<CURLformoption, std::string> category_name(CURLFORM_COPYNAME, "media_category");
@@ -184,212 +398,109 @@ namespace twitter {
       form.add(category_name, category_cont);
     }
     
-    long response_code;
-    std::string response_data;
-    if (!performMultiPost("https://upload.twitter.com/1.1/media/upload.json", form.get(), response_code, response_data))
-    {
-      return response::curl_error;
-    }
-    
-    if (response_code / 100 != 2)
-    {
-      return codeForError(response_code, response_data);
-    }
-    
-    json response_json;
-    try {
-      response_json = json::parse(response_data);
-    } catch (std::invalid_argument e)
-    {
-      return response::invalid_response;
-    }
-    
-    media_id = response_json["media_id"].get<long>();
+    std::string init_response =
+      multipost(*_oauth_client,
+        "https://upload.twitter.com/1.1/media/upload.json",
+        form.get())
+      .perform();
 
+    long media_id;
+    
+    try
+    {
+      nlohmann::json response_json = nlohmann::json::parse(init_response);
+      media_id = response_json["media_id"].get<long>();
+    } catch (const std::invalid_argument& error)
+    {
+      std::throw_with_nested(invalid_response(init_response));
+    } catch (const std::domain_error& error)
+    {
+      std::throw_with_nested(invalid_response(init_response));
+    }
+
+    // TODO: Currently have to use the C libcurl API to create this form because it uses a buffer and
+    // libcurlcpp currently messes that up.
     curl_httppost* append_form_post = nullptr;
     curl_httppost* append_form_last = nullptr;
-    curl_formadd(&append_form_post, &append_form_last, CURLFORM_COPYNAME, "command", CURLFORM_COPYCONTENTS, "APPEND", CURLFORM_END);
-    curl_formadd(&append_form_post, &append_form_last, CURLFORM_COPYNAME, "media_id", CURLFORM_COPYCONTENTS, std::to_string(media_id).c_str(), CURLFORM_END);
-    curl_formadd(&append_form_post, &append_form_last, CURLFORM_COPYNAME, "media", CURLFORM_BUFFER, "media", CURLFORM_BUFFERPTR, data, CURLFORM_BUFFERLENGTH, data_length, CURLFORM_CONTENTTYPE, "application/octet-stream", CURLFORM_END);
-    curl_formadd(&append_form_post, &append_form_last, CURLFORM_COPYNAME, "segment_index", CURLFORM_COPYCONTENTS, std::to_string(0).c_str(), CURLFORM_END);
-    if (!performMultiPost("https://upload.twitter.com/1.1/media/upload.json", append_form_post, response_code, response_data))
+    if ( curl_formadd(&append_form_post, &append_form_last, CURLFORM_COPYNAME, "command", CURLFORM_COPYCONTENTS, "APPEND", CURLFORM_END)
+      || curl_formadd(&append_form_post, &append_form_last, CURLFORM_COPYNAME, "media_id", CURLFORM_COPYCONTENTS, std::to_string(media_id).c_str(), CURLFORM_END)
+      || curl_formadd(&append_form_post, &append_form_last, CURLFORM_COPYNAME, "media", CURLFORM_BUFFER, "media", CURLFORM_BUFFERPTR, data, CURLFORM_BUFFERLENGTH, data_length, CURLFORM_CONTENTTYPE, "application/octet-stream", CURLFORM_END)
+      || curl_formadd(&append_form_post, &append_form_last, CURLFORM_COPYNAME, "segment_index", CURLFORM_COPYCONTENTS, std::to_string(0).c_str(), CURLFORM_END))
     {
-      return response::curl_error;
+      assert(false);
     }
+    
+    multipost(*_oauth_client, "https://upload.twitter.com/1.1/media/upload.json", append_form_post).perform();
     
     curl_formfree(append_form_post);
     
-    if (response_code / 100 != 2)
-    {
-      return codeForError(response_code, response_data);
-    }
-    
     curl::curl_form finalize_form;
+    std::string str_media_id = std::to_string(media_id);
+    
     curl::curl_pair<CURLformoption, std::string> command3_name(CURLFORM_COPYNAME, "command");
     curl::curl_pair<CURLformoption, std::string> command3_cont(CURLFORM_COPYCONTENTS, "FINALIZE");
     curl::curl_pair<CURLformoption, std::string> media_id_name(CURLFORM_COPYNAME, "media_id");
-    std::string str_media_id = std::to_string(media_id);
     curl::curl_pair<CURLformoption, std::string> media_id_cont(CURLFORM_COPYCONTENTS, str_media_id);
     finalize_form.add(command3_name, command3_cont);
     finalize_form.add(media_id_name, media_id_cont);
     
-    if (!performMultiPost("https://upload.twitter.com/1.1/media/upload.json", finalize_form.get(), response_code, response_data))
+    std::string finalize_response =
+      multipost(*_oauth_client,
+        "https://upload.twitter.com/1.1/media/upload.json",
+        finalize_form.get())
+      .perform();
+
+    nlohmann::json finalize_json;
+    
+    try
     {
-      return response::curl_error;
+      finalize_json = nlohmann::json::parse(finalize_response);
+    } catch (const std::invalid_argument& error)
+    {
+      std::throw_with_nested(invalid_response(finalize_response));
     }
     
-    if (response_code / 100 != 2)
-    {
-      return codeForError(response_code, response_data);
-    }
-    
-    try {
-      response_json = json::parse(response_data);
-    } catch (std::invalid_argument e)
-    {
-      return response::invalid_response;
-    }
-    
-    if (response_json.find("processing_info") != response_json.end())
+    if (finalize_json.find("processing_info") != finalize_json.end())
     {
       std::stringstream datastr;
       datastr << "https://upload.twitter.com/1.1/media/upload.json?command=STATUS&media_id=" << media_id;
       
       for (;;)
       {
-        if (!performGet(datastr.str(), response_code, response_data))
-        {
-          return response::curl_error;
-        }
+        std::string status_response = get(*_oauth_client, datastr.str()).perform();
         
-        if (response_code / 100 != 2)
+        try
         {
-          return codeForError(response_code, response_data);
-        }
-        
-        try {
-          response_json = json::parse(response_data);
-        } catch (std::invalid_argument e)
+          nlohmann::json status_json = nlohmann::json::parse(status_response);
+          std::string state = status_json["processing_info"]["state"].get<std::string>();
+          
+          if (state == "succeeded")
+          {
+            break;
+          }
+          
+          int ttw = status_json["processing_info"]["check_after_secs"].get<int>();
+          std::this_thread::sleep_for(std::chrono::seconds(ttw));
+        } catch (const std::invalid_argument& error)
         {
-          return response::invalid_response;
-        }
-        
-        if (response_json["processing_info"]["state"] == "succeeded")
+          std::throw_with_nested(invalid_response(status_response));
+        } catch (const std::domain_error& error)
         {
-          break;
-        }
-        
-        int ttw = response_json["processing_info"]["check_after_secs"].get<int>();
-        std::this_thread::sleep_for(std::chrono::seconds(ttw));
-      }
-    }
-    
-    return response::ok;
-  }
-  
-  response client::follow(user_id toFollow)
-  {
-    std::stringstream datastrstream;
-    datastrstream << "follow=true&user_id=";
-    datastrstream << toFollow;
-    
-    std::string datastr = datastrstream.str();
-    std::string url = "https://api.twitter.com/1.1/friendships/create.json";
-    
-    long response_code;
-    std::string response_data;
-    if (!performPost(url, datastr, response_code, response_data))
-    {
-      return response::curl_error;
-    }
-    
-    if (response_code == 200)
-    {
-      return response::ok;
-    } else {
-      return codeForError(response_code, response_data);
-    }
-  }
-  
-  response client::follow(user toFollow)
-  {
-    return follow(toFollow.getID());
-  }
-  
-  response client::unfollow(user_id toUnfollow)
-  {
-    std::stringstream datastrstream;
-    datastrstream << "user_id=";
-    datastrstream << toUnfollow;
-    
-    std::string datastr = datastrstream.str();
-    std::string url = "https://api.twitter.com/1.1/friendships/destroy.json";
-    
-    long response_code;
-    std::string response_data;
-    if (!performPost(url, datastr, response_code, response_data))
-    {
-      return response::curl_error;
-    }
-    
-    if (response_code == 200)
-    {
-      return response::ok;
-    } else {
-      return codeForError(response_code, response_data);
-    }
-  }
-  
-  response client::unfollow(user toUnfollow)
-  {
-    return unfollow(toUnfollow.getID());
-  }
-  
-  response client::getUser(user& result)
-  {
-    if (!_current_user)
-    {
-      std::string url = "https://api.twitter.com/1.1/account/verify_credentials.json";
-      long response_code;
-      std::string response_data;
-      if (performGet(url, response_code, response_data) && (response_code == 200))
-      {
-        try {
-          _current_user = user(response_data);
-        } catch (std::invalid_argument e)
-        {
-          return response::invalid_response;
+          std::throw_with_nested(invalid_response(status_response));
         }
       }
     }
     
-    result = _current_user;
-    return response::ok;
+    return media_id;
+  } catch (const curl::curl_exception& error)
+  {
+    error.print_traceback();
+    
+    assert(false);
   }
   
-  configuration client::getConfiguration()
+  std::set<user_id> client::getFriends(user_id id) const
   {
-    if (!_configuration || (difftime(time(NULL), _last_configuration_update) > 60*60*24))
-    {
-      long response_code;
-      std::string response_data;
-      if (performGet("https://api.twitter.com/1.1/help/configuration.json", response_code, response_data))
-      {
-        _configuration = configuration(response_data);
-        _last_configuration_update = time(NULL);
-      }
-    }
-    
-    return _configuration;
-  }
-  
-  response client::getFriends(std::set<user_id>& _ret)
-  {
-    if (!_current_user)
-    {
-      return response::unknown_error;
-    }
-    
     long long cursor = -1;
     std::set<user_id> result;
     
@@ -397,48 +508,33 @@ namespace twitter {
     {
       std::stringstream urlstream;
       urlstream << "https://api.twitter.com/1.1/friends/ids.json?user_id=";
-      urlstream << _current_user.getID();
+      urlstream << id;
       urlstream << "&cursor=";
       urlstream << cursor;
   
       std::string url = urlstream.str();
-  
-      long response_code;
-      std::string response_data;
-      if (!performGet(url, response_code, response_data))
+      std::string response_data = get(*_oauth_client, url).perform();
+      
+      try
       {
-        return response::curl_error;
-      }
-  
-      if (response_code == 200)
-      {
-        json rjs;
-        try {
-          rjs = json::parse(response_data);
-        } catch (std::invalid_argument e)
-        {
-          return response::invalid_response;
-        }
+        nlohmann::json rjs = nlohmann::json::parse(response_data);
         
-        cursor = rjs.at("next_cursor");
-        result.insert(std::begin(rjs.at("ids")), std::end(rjs.at("ids")));
-      } else {
-        return codeForError(response_code, response_data);
+        cursor = rjs["next_cursor"].get<long long>();
+        result.insert(std::begin(rjs["ids"]), std::end(rjs["ids"]));
+      } catch (const std::invalid_argument& error)
+      {
+        std::throw_with_nested(invalid_response(response_data));
+      } catch (const std::domain_error& error)
+      {
+        std::throw_with_nested(invalid_response(response_data));
       }
     }
     
-    _ret = result;
-    
-    return response::ok;
+    return result;
   }
   
-  response client::getFollowers(std::set<user_id>& _ret)
+  std::set<user_id> client::getFollowers(user_id id) const
   {
-    if (!_current_user)
-    {
-      return response::unknown_error;
-    }
-    
     long long cursor = -1;
     std::set<user_id> result;
     
@@ -446,473 +542,68 @@ namespace twitter {
     {
       std::stringstream urlstream;
       urlstream << "https://api.twitter.com/1.1/followers/ids.json?user_id=";
-      urlstream << _current_user.getID();
+      urlstream << id;
       urlstream << "&cursor=";
       urlstream << cursor;
   
       std::string url = urlstream.str();
-  
-      long response_code;
-      std::string response_data;
-      if (!performGet(url, response_code, response_data))
+      std::string response_data = get(*_oauth_client, url).perform();
+      
+      try
       {
-        return response::curl_error;
-      }
-  
-      if (response_code == 200)
-      {
-        json rjs;
-        try {
-          rjs = json::parse(response_data);
-        } catch (std::invalid_argument e)
-        {
-          return response::invalid_response;
-        }
+        nlohmann::json rjs = nlohmann::json::parse(response_data);
         
-        cursor = rjs.at("next_cursor");
-        result.insert(std::begin(rjs.at("ids")), std::end(rjs.at("ids")));
-      } else {
-        return codeForError(response_code, response_data);
-      }
-    }
-    
-    _ret = result;
-    
-    return response::ok;
-  }
-  
-  void client::setUserStreamNotifyCallback(stream::notify_callback callback)
-  {
-    _user_stream.setNotifyCallback(callback);
-  }
-  
-  void client::setUserStreamReceiveAllReplies(bool _arg)
-  {
-    _user_stream.setReceiveAllReplies(_arg);
-  }
-  
-  void client::startUserStream()
-  {
-    _user_stream.start();
-  }
-  
-  void client::stopUserStream()
-  {
-    _user_stream.stop();
-  }
-  
-  std::string client::generateReplyPrefill(tweet _tweet) const
-  {
-    std::ostringstream output;
-    output << "@" << _tweet.getAuthor().getScreenName() << " ";
-    
-    for (auto mention : _tweet.getMentions())
-    {
-      if ((mention.first != _tweet.getAuthor().getID()) && (mention.first != _current_user.getID()))
+        cursor = rjs["next_cursor"].get<long long>();
+        result.insert(std::begin(rjs["ids"]), std::end(rjs["ids"]));
+      } catch (const std::invalid_argument& error)
       {
-        output << "@" << mention.second << " ";
-      }
-    }
-    
-    return output.str();
-  }
-  
-  bool client::performGet(std::string url, long& response_code, std::string& result)
-  {
-    std::ostringstream output;
-    curl::curl_ios<std::ostringstream> ios(output);
-    curl::curl_easy conn(ios);
-    
-    curl::curl_header headers;
-    std::string oauth_header = _oauth_client->getFormattedHttpHeader(OAuth::Http::Get, url, "");
-    if (!oauth_header.empty())
-    {
-      headers.add(oauth_header);
-    }
-    
-    try {
-      //conn.add<CURLOPT_VERBOSE>(1);
-      //conn.add<CURLOPT_DEBUGFUNCTION>(my_trace);
-      conn.add<CURLOPT_URL>(url.c_str());
-      conn.add<CURLOPT_HTTPHEADER>(headers.get());
-      
-      conn.perform();
-    } catch (curl::curl_easy_exception error)
-    {
-      error.print_traceback();
-      
-      return false;
-    }
-    
-    response_code = conn.get_info<CURLINFO_RESPONSE_CODE>().get();
-    result = output.str();
-    
-    return true;
-  }
-  
-  bool client::performPost(std::string url, std::string datastr, long& response_code, std::string& result)
-  {
-    std::ostringstream output;
-    curl::curl_ios<std::ostringstream> ios(output);
-    curl::curl_easy conn(ios);
-    
-    curl::curl_header headers;
-    std::string oauth_header = _oauth_client->getFormattedHttpHeader(OAuth::Http::Post, url, datastr);
-    if (!oauth_header.empty())
-    {
-      headers.add(oauth_header);
-    }
-    
-    try {
-      //conn.add<CURLOPT_VERBOSE>(1);
-      //conn.add<CURLOPT_DEBUGFUNCTION>(my_trace);
-      conn.add<CURLOPT_URL>(url.c_str());
-      conn.add<CURLOPT_COPYPOSTFIELDS>(datastr.c_str());
-      conn.add<CURLOPT_HTTPHEADER>(headers.get());
-      
-      conn.perform();
-    } catch (curl::curl_easy_exception error)
-    {
-      error.print_traceback();
-      
-      return false;
-    }
-    
-    response_code = conn.get_info<CURLINFO_RESPONSE_CODE>().get();
-    result = output.str();
-    
-    return true;
-  }
-  
-  bool client::performMultiPost(std::string url, const curl_httppost* fields, long& response_code, std::string& result)
-  {
-    std::ostringstream output;
-    curl::curl_ios<std::ostringstream> ios(output);
-    curl::curl_easy conn(ios);
-    
-    curl::curl_header headers;
-    std::string oauth_header = _oauth_client->getFormattedHttpHeader(OAuth::Http::Post, url, "");
-    if (!oauth_header.empty())
-    {
-      headers.add(oauth_header);
-    }
-    
-    try {
-      //conn.add<CURLOPT_VERBOSE>(1);
-      //conn.add<CURLOPT_DEBUGFUNCTION>(my_trace);
-      conn.add<CURLOPT_HTTPHEADER>(headers.get());
-      conn.add<CURLOPT_URL>(url.c_str());
-      conn.add<CURLOPT_HTTPPOST>(fields);
-      
-      conn.perform();
-    } catch (curl::curl_easy_exception error)
-    {
-      error.print_traceback();
-      
-      return false;
-    }
-    
-    response_code = conn.get_info<CURLINFO_RESPONSE_CODE>().get();
-    result = output.str();
-    
-    return true;
-  }
-  
-  response client::codeForError(int response_code, std::string response_data) const
-  {
-    json response_json;
-    try {
-      response_json = json::parse(response_data);
-    } catch (std::invalid_argument e)
-    {
-      return response::invalid_response;
-    }
-    
-    std::set<int> error_codes;
-    if (response_json.find("errors") != response_json.end())
-    {
-      std::transform(std::begin(response_json["errors"]), std::end(response_json["errors"]), std::inserter(error_codes, std::begin(error_codes)), [] (const json& error) {
-        return error["code"].get<int>();
-      });
-    }
-    
-    if (error_codes.count(32) == 1 || error_codes.count(135) == 1 || error_codes.count(215) == 1)
-    {
-      return response::bad_auth;
-    } else if (error_codes.count(64) == 1)
-    {
-      return response::suspended;
-    } else if (error_codes.count(88) == 1 || error_codes.count(185) == 1)
-    {
-      return response::limited;
-    } else if (error_codes.count(89) == 1)
-    {
-      return response::bad_token;
-    } else if (error_codes.count(130) == 1)
-    {
-      return response::server_overloaded;
-    } else if (error_codes.count(131) == 1)
-    {
-      return response::server_error;
-    } else if (error_codes.count(186) == 1)
-    {
-      return response::bad_length;
-    } else if (error_codes.count(187) == 1)
-    {
-      return response::duplicate_status;
-    } else if (error_codes.count(226) == 1)
-    {
-      return response::suspected_spam;
-    } else if (error_codes.count(261) == 1)
-    {
-      return response::write_restricted;
-    } else if (error_codes.count(44) == 1)
-    {
-      return response::invalid_media;
-    } else if (response_code == 429)
-    {
-      return response::limited;
-    } else if (response_code == 500)
-    {
-      return response::server_error;
-    } else if (response_code == 502)
-    {
-      return response::server_unavailable;
-    } else if (response_code == 503)
-    {
-      return response::server_overloaded;
-    } else if (response_code == 504)
-    {
-      return response::server_timeout;
-    } else {
-      return response::unknown_error;
-    }
-  }
-  
-  client::stream::stream(client& _client) : _client(_client)
-  {
-    
-  }
-  
-  bool client::stream::isRunning() const
-  {
-    return _thread.joinable();
-  }
-  
-  void client::stream::setNotifyCallback(notify_callback _n)
-  {
-    std::lock_guard<std::mutex> _running_lock(_running_mutex);
-    
-    if (!_thread.joinable())
-    {
-      _notify = _n;
-    }
-  }
-  
-  void client::stream::setReceiveAllReplies(bool _arg)
-  {
-    std::lock_guard<std::mutex> _running_lock(_running_mutex);
-    
-    if (!_thread.joinable())
-    {
-      _receive_all_replies = _arg;
-    }
-  }
-    
-  void client::stream::start()
-  {
-    std::lock_guard<std::mutex> _running_lock(_running_mutex);
-    
-    if (!_thread.joinable())
-    {
-      _thread = std::thread(&stream::run, this);
-    }
-  }
-  
-  void client::stream::stop()
-  {
-    std::lock_guard<std::mutex> _running_lock(_running_mutex);
-    
-    if (_thread.joinable())
-    {
-      _stop = true;
-      _thread.join();
-      _stop = false;
-    }
-  }
-  
-  void client::stream::run()
-  {
-    curl::curl_easy conn;
-    std::ostringstream urlstr;
-    urlstr << "https://userstream.twitter.com/1.1/user.json";
-    
-    if (_receive_all_replies)
-    {
-      urlstr << "?replies=all";
-    }
-    
-    std::string url = urlstr.str();
-    curl::curl_header headers;
-    std::string oauth_header = _client._oauth_client->getFormattedHttpHeader(OAuth::Http::Get, url, "");
-    if (!oauth_header.empty())
-    {
-      headers.add(oauth_header);
-    }
-    
-    conn.add<CURLOPT_WRITEFUNCTION>(client_stream_write_callback_wrapper);
-    conn.add<CURLOPT_WRITEDATA>(this);
-    conn.add<CURLOPT_HEADERFUNCTION>(nullptr);
-    conn.add<CURLOPT_HEADERDATA>(nullptr);
-    conn.add<CURLOPT_XFERINFOFUNCTION>(client_stream_progress_callback_wrapper);
-    conn.add<CURLOPT_XFERINFODATA>(this);
-    conn.add<CURLOPT_NOPROGRESS>(0);
-    //conn.add<CURLOPT_VERBOSE>(1);
-    //conn.add<CURLOPT_DEBUGFUNCTION>(my_trace);
-    conn.add<CURLOPT_URL>(url.c_str());
-    conn.add<CURLOPT_HTTPHEADER>(headers.get());
-    
-    _backoff_type = backoff::none;
-    _backoff_amount = std::chrono::milliseconds(0);
-    for (;;)
-    {
-      bool failure = false;
-      try {
-        conn.perform();
-      } catch (curl::curl_easy_exception error)
+        std::throw_with_nested(invalid_response(response_data));
+      } catch (const std::domain_error& error)
       {
-        failure = true;
-        if ((error.get_code() == CURLE_ABORTED_BY_CALLBACK) && _stop)
-        {
-          break;
-        } else {
-          if (_backoff_type == backoff::none)
-          {
-            _established = false;
-            _backoff_type = backoff::network;
-            _backoff_amount = std::chrono::milliseconds(0);
-          }
-        }
+        std::throw_with_nested(invalid_response(response_data));
       }
-      
-      if (!failure)
-      {
-        long response_code = conn.get_info<CURLINFO_RESPONSE_CODE>().get();
-        if (response_code == 420)
-        {
-          if (_backoff_type == backoff::none)
-          {
-            _established = false;
-            _backoff_type = backoff::rate_limit;
-            _backoff_amount = std::chrono::minutes(1);
-          }
-        } else if (response_code != 200)
-        {
-          if (_backoff_type == backoff::none)
-          {
-            _established = false;
-            _backoff_type = backoff::http;
-            _backoff_amount = std::chrono::seconds(5);
-          }
-        } else {
-          if (_backoff_type == backoff::none)
-          {
-            _established = false;
-            _backoff_type = backoff::network;
-            _backoff_amount = std::chrono::milliseconds(0);
-          }
-        }
-      }
-      
-      std::this_thread::sleep_for(_backoff_amount);
+    }
+    
+    return result;
+  }
+  
+  void client::follow(user_id toFollow) const
+  {
+    std::stringstream datastrstream;
+    datastrstream << "follow=true&user_id=";
+    datastrstream << toFollow;
+    
+    post(*_oauth_client, "https://api.twitter.com/1.1/friendships/create.json", datastrstream.str()).perform();
+  }
+  
+  void client::unfollow(user_id toUnfollow) const
+  {
+    std::stringstream datastrstream;
+    datastrstream << "user_id=";
+    datastrstream << toUnfollow;
+    
+    post(*_oauth_client, "https://api.twitter.com/1.1/friendships/destroy.json", datastrstream.str()).perform();
+  }
 
-      switch (_backoff_type)
-      {
-        case backoff::network:
-        {
-          if (_backoff_amount < std::chrono::seconds(16))
-          {
-            _backoff_amount += std::chrono::milliseconds(250);
-          }
-          
-          break;
-        }
-        
-        case backoff::http:
-        {
-          if (_backoff_amount < std::chrono::seconds(320))
-          {
-            _backoff_amount *= 2;
-          }
-          
-          break;
-        }
-        
-        case backoff::rate_limit:
-        {
-          _backoff_amount *= 2;
-          
-          break;
-        }
-      }
-    }
+  const user& client::getUser() const
+  {
+    return *_current_user;
   }
   
-  size_t client::stream::write(char* ptr, size_t size, size_t nmemb)
+  const configuration& client::getConfiguration() const
   {
-    for (size_t i = 0; i < size*nmemb; i++)
+    if (!_configuration || (difftime(time(NULL), _last_configuration_update) > 60*60*24))
     {
-      if (ptr[i] == '\r')
-      {
-        i++; // Skip the \n
-        
-        if (!_buffer.empty())
-        {
-          notification n(_buffer, _client._current_user);
-          if (n.getType() == notification::type::friends)
-          {
-            _established = true;
-            _backoff_type = backoff::none;
-            _backoff_amount = std::chrono::milliseconds(0);
-          }
-          
-          if (_notify)
-          {
-            _notify(n);
-          }
-                    
-          _buffer = "";
-        }
-      } else {
-        _buffer.push_back(ptr[i]);
-      }
+      _configuration =
+        make_unique<configuration>(
+          get(*_oauth_client,
+            "https://api.twitter.com/1.1/help/configuration.json")
+          .perform());
+
+      _last_configuration_update = time(NULL);
     }
     
-    {
-      std::lock_guard<std::mutex> _stall_lock(_stall_mutex);
-      time(&_last_write);
-    }
-    
-    return size*nmemb;
-  }
-  
-  int client::stream::progress()
-  {
-    if (_stop)
-    {
-      return 1;
-    }
-    
-    if (_established)
-    {
-      std::lock_guard<std::mutex> _stall_lock(_stall_mutex);
-      if (difftime(time(NULL), _last_write) >= 90)
-      {
-        return 1;
-      }
-    }
-    
-    return 0;
+    return *_configuration;
   }
   
 };
