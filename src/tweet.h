@@ -6,6 +6,7 @@
 #include <utility>
 #include <cassert>
 #include <list>
+#include <memory>
 #include "user.h"
 
 namespace twitter {
