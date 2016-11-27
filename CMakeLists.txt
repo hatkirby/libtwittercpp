@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.1)
 project (twitter++)
 
-include_directories(vendor/json/src)
+include_directories(vendor/json)
 
 set(LIBOAUTHCPP_BUILD_DEMOS FALSE)
 add_subdirectory(vendor/liboauthcpp/build EXCLUDE_FROM_ALL)
