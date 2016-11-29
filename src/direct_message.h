@@ -8,6 +8,7 @@ namespace twitter {
   class direct_message {
   public:
     
+    direct_message() {}
     explicit direct_message(std::string data);
   };
   

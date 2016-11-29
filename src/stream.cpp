@@ -256,7 +256,7 @@ namespace twitter {
             _backoff_amount = std::chrono::milliseconds(0);
           }
           
-          _notify(n);
+          _notify(std::move(n));
                     
           _buffer = "";
         }

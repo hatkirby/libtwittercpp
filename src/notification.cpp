@@ -28,16 +28,11 @@ namespace twitter {
     
     try
     {
-      if (!json["in_reply_to_status_id"].is_null())
-      {
-        _type = type::tweet;
-      
-        new(&_tweet) tweet(tclient, data);
-      } else if (!json["event"].is_null())
+      if (!json["event"].is_null())
       {
         std::string event = json["event"];
-        user source(tclient, json["source"].dump());
-        user target(tclient, json["target"].dump());
+        user source(json["source"].dump());
+        user target(json["target"].dump());
       
         if (event == "user_update")
         {
@@ -56,7 +51,7 @@ namespace twitter {
           new(&_user) user(target);
         } else if (event == "favorite")
         {
-          new(&_user_and_tweet._tweet) tweet(tclient, json["target_object"].dump());
+          new(&_user_and_tweet._tweet) tweet(json["target_object"].dump());
         
           if (current_user == source)
           {
@@ -70,7 +65,7 @@ namespace twitter {
           }
         } else if (event == "unfavorite")
         {
-          new(&_user_and_tweet._tweet) tweet(tclient, json["target_object"].dump());
+          new(&_user_and_tweet._tweet) tweet(json["target_object"].dump());
         
           if (current_user == source)
           {
@@ -175,7 +170,9 @@ namespace twitter {
           _type = type::quoted;
         
           new(&_user_and_tweet._user) user(source);
-          new(&_user_and_tweet._tweet) tweet(tclient, json["target_object"].dump());
+          new(&_user_and_tweet._tweet) tweet(json["target_object"].dump());
+        } else {
+          _type = type::unknown;
         }
       } else if (!json["warning"].is_null())
       {
@@ -260,7 +257,9 @@ namespace twitter {
       
         new(&_direct_message) direct_message(json["direct_message"].dump());
       } else {
-        _type = type::unknown;
+        _type = type::tweet;
+      
+        new(&_tweet) tweet(data);
       }
     } catch (const std::domain_error& error)
     {
@@ -268,7 +267,7 @@ namespace twitter {
     }
   }
   
-  notification::notification(notification&& other)
+  notification::notification(const notification& other)
   {
     _type = other._type;
     
@@ -276,7 +275,7 @@ namespace twitter {
     {
       case type::tweet:
       {
-        new(&_tweet) tweet(std::move(other._tweet));
+        new(&_tweet) tweet(other._tweet);
       
         break;
       }
@@ -288,7 +287,7 @@ namespace twitter {
       case type::followed:
       case type::unfollow:
       {
-        new(&_user) user(std::move(other._user));
+        new(&_user) user(other._user);
       
         break;
       }
@@ -299,8 +298,8 @@ namespace twitter {
       case type::unfavorited:
       case type::quoted:
       {
-        new(&_user_and_tweet._user) user(std::move(other._user_and_tweet._user));
-        new(&_user_and_tweet._tweet) tweet(std::move(other._user_and_tweet._tweet));
+        new(&_user_and_tweet._user) user(other._user_and_tweet._user);
+        new(&_user_and_tweet._tweet) tweet(other._user_and_tweet._tweet);
       
         break;
       }
@@ -309,7 +308,7 @@ namespace twitter {
       case type::list_destroyed:
       case type::list_updated:
       {
-        new(&_list) list(std::move(other._list));
+        new(&_list) list(other._list);
       
         break;
       }
@@ -323,8 +322,8 @@ namespace twitter {
       case type::list_unsubscribe:
       case type::list_unsubscribed:
       {
-        new(&_user_and_list._user) user(std::move(other._user_and_list._user));
-        new(&_user_and_list._list) list(std::move(other._user_and_list._list));
+        new(&_user_and_list._user) user(other._user_and_list._user);
+        new(&_user_and_list._list) list(other._user_and_list._list);
       
         break;
       }
@@ -333,7 +332,7 @@ namespace twitter {
       case type::follow_limit:
       case type::unknown_warning:
       {
-        new(&_warning) std::string(std::move(other._warning));
+        new(&_warning) std::string(other._warning);
       
         break;
       }
@@ -358,7 +357,7 @@ namespace twitter {
       {
         _withhold_status._user_id = other._withhold_status._user_id;
         _withhold_status._tweet_id = other._withhold_status._tweet_id;
-        new(&_withhold_status._countries) std::vector<std::string>(std::move(other._withhold_status._countries));
+        new(&_withhold_status._countries) std::vector<std::string>(other._withhold_status._countries);
       
         break;
       }
@@ -366,7 +365,7 @@ namespace twitter {
       case type::withhold_user:
       {
         _withhold_user._user_id = other._withhold_user._user_id;
-        new(&_withhold_user._countries) std::vector<std::string>(std::move(other._withhold_user._countries));
+        new(&_withhold_user._countries) std::vector<std::string>(other._withhold_user._countries);
       
         break;
       }
@@ -380,14 +379,14 @@ namespace twitter {
     
       case type::friends:
       {
-        new(&_friends) std::set<user_id>(std::move(other._friends));
+        new(&_friends) std::set<user_id>(other._friends);
       
         break;
       }
     
       case type::direct:
       {
-        new(&_direct_message) direct_message(std::move(other._direct_message));
+        new(&_direct_message) direct_message(other._direct_message);
       
         break;
       }
@@ -400,138 +399,14 @@ namespace twitter {
     }
   }
   
-  notification& notification::operator=(notification&& other)
+  notification::notification(notification&& other) : notification()
   {
-    this->~notification();
-    
-    _type = other._type;
-    
-    switch (_type)
-    {
-      case type::tweet:
-      {
-        new(&_tweet) tweet(std::move(other._tweet));
-        
-        break;
-      }
-      
-      case type::update_user:
-      case type::block:
-      case type::unblock:
-      case type::follow:
-      case type::followed:
-      case type::unfollow:
-      {
-        new(&_user) user(std::move(other._user));
-        
-        break;
-      }
-      
-      case type::favorite:
-      case type::favorited:
-      case type::unfavorite:
-      case type::unfavorited:
-      case type::quoted:
-      {
-        new(&_user_and_tweet._user) user(std::move(other._user_and_tweet._user));
-        new(&_user_and_tweet._tweet) tweet(std::move(other._user_and_tweet._tweet));
-        
-        break;
-      }
-      
-      case type::list_created:
-      case type::list_destroyed:
-      case type::list_updated:
-      {
-        new(&_list) list(std::move(other._list));
-        
-        break;
-      }
-      
-      case type::list_add:
-      case type::list_added:
-      case type::list_remove:
-      case type::list_removed:
-      case type::list_subscribe:
-      case type::list_subscribed:
-      case type::list_unsubscribe:
-      case type::list_unsubscribed:
-      {
-        new(&_user_and_list._user) user(std::move(other._user_and_list._user));
-        new(&_user_and_list._list) list(std::move(other._user_and_list._list));
-        
-        break;
-      }
-      
-      case type::stall:
-      case type::follow_limit:
-      case type::unknown_warning:
-      {
-        new(&_warning) std::string(std::move(other._warning));
-        
-        break;
-      }
-      
-      case type::deletion:
-      case type::scrub_location:
-      {
-        _user_id_and_tweet_id._user_id = other._user_id_and_tweet_id._user_id;
-        _user_id_and_tweet_id._tweet_id = other._user_id_and_tweet_id._tweet_id;
-        
-        break;
-      }
-      
-      case type::limit:
-      {
-        _limit = other._limit;
-        
-        break;
-      }
-      
-      case type::withhold_status:
-      {
-        _withhold_status._user_id = other._withhold_status._user_id;
-        _withhold_status._tweet_id = other._withhold_status._tweet_id;
-        new(&_withhold_status._countries) std::vector<std::string>(std::move(other._withhold_status._countries));
-        
-        break;
-      }
-      
-      case type::withhold_user:
-      {
-        _withhold_user._user_id = other._withhold_user._user_id;
-        new(&_withhold_user._countries) std::vector<std::string>(std::move(other._withhold_user._countries));
-        
-        break;
-      }
-      
-      case type::disconnect:
-      {
-        _disconnect = other._disconnect;
-        
-        break;
-      }
-      
-      case type::friends:
-      {
-        new(&_friends) std::set<user_id>(std::move(other._friends));
-        
-        break;
-      }
-      
-      case type::direct:
-      {
-        new(&_direct_message) direct_message(std::move(other._direct_message));
-        
-        break;
-      }
-      
-      case type::invalid:
-      case type::unknown:
-      {
-        break;
-      }
-    }
+    swap(*this, other);
+  }
+  
+  notification& notification::operator=(notification other)
+  {
+    swap(*this, other);
     
     return *this;
   }
@@ -642,6 +517,418 @@ namespace twitter {
       case type::disconnect:
       case type::unknown:
       case type::invalid:
+      {
+        break;
+      }
+    }
+  }
+  
+  void swap(notification& first, notification& second)
+  {
+    using type = notification::type;
+    
+    type tempType = first._type;
+    tweet tempTweet;
+    user tempUser;
+    list tempList;
+    std::string tempWarning;
+    user_id tempUserId;
+    tweet_id tempTweetId;
+    int tempLimit;
+    std::vector<std::string> tempCountries;
+    disconnect_code tempDisconnectCode;
+    std::set<user_id> tempFriends;
+    direct_message tempDirectMessage;
+    
+    switch (first._type)
+    {
+      case type::tweet:
+      {
+        tempTweet = std::move(first._tweet);
+        
+        break;
+      }
+      
+      case type::update_user:
+      case type::block:
+      case type::unblock:
+      case type::follow:
+      case type::followed:
+      case type::unfollow:
+      {
+        tempUser = std::move(first._user);
+      
+        break;
+      }
+    
+      case type::favorite:
+      case type::favorited:
+      case type::unfavorite:
+      case type::unfavorited:
+      case type::quoted:
+      {
+        tempTweet = std::move(first._user_and_tweet._tweet);
+        tempUser = std::move(first._user_and_tweet._user);
+      
+        break;
+      }
+    
+      case type::list_created:
+      case type::list_destroyed:
+      case type::list_updated:
+      {
+        tempList = std::move(first._list);
+      
+        break;
+      }
+    
+      case type::list_add:
+      case type::list_added:
+      case type::list_remove:
+      case type::list_removed:
+      case type::list_subscribe:
+      case type::list_subscribed:
+      case type::list_unsubscribe:
+      case type::list_unsubscribed:
+      {
+        tempList = std::move(first._user_and_list._list);
+        tempUser = std::move(first._user_and_list._user);
+      
+        break;
+      }
+    
+      case type::stall:
+      case type::follow_limit:
+      case type::unknown_warning:
+      {
+        tempWarning = std::move(first._warning);
+      
+        break;
+      }
+    
+      case type::deletion:
+      case type::scrub_location:
+      {
+        tempUserId = first._user_id_and_tweet_id._user_id;
+        tempTweetId = first._user_id_and_tweet_id._tweet_id;
+      
+        break;
+      }
+    
+      case type::limit:
+      {
+        tempLimit = first._limit;
+      
+        break;
+      }
+    
+      case type::withhold_status:
+      {
+        tempUserId = first._withhold_status._user_id;
+        tempTweetId = first._withhold_status._tweet_id;
+        tempCountries = std::move(first._withhold_status._countries);
+      
+        break;
+      }
+    
+      case type::withhold_user:
+      {
+        tempUserId = first._withhold_user._user_id;
+        tempCountries = std::move(first._withhold_user._countries);
+      
+        break;
+      }
+    
+      case type::disconnect:
+      {
+        tempDisconnectCode = first._disconnect;
+      
+        break;
+      }
+    
+      case type::friends:
+      {
+        tempFriends = std::move(first._friends);
+      
+        break;
+      }
+    
+      case type::direct:
+      {
+        tempDirectMessage = std::move(first._direct_message);
+      
+        break;
+      }
+    
+      case type::invalid:
+      case type::unknown:
+      {
+        break;
+      }
+    }
+    
+    first.~notification();
+    
+    first._type = second._type;
+    
+    // Okay now you need to initialize the first with the data from the second
+    // And then destruct the second and initialize it with the data stored in temp
+    // This is hell
+    
+    switch (second._type)
+    {
+      case type::tweet:
+      {
+        new(&first._tweet) tweet(std::move(second._tweet));
+        
+        break;
+      }
+      
+      case type::update_user:
+      case type::block:
+      case type::unblock:
+      case type::follow:
+      case type::followed:
+      case type::unfollow:
+      {
+        new(&first._user) user(std::move(second._user));
+        
+        break;
+      }
+      
+      case type::favorite:
+      case type::favorited:
+      case type::unfavorite:
+      case type::unfavorited:
+      case type::quoted:
+      {
+        new(&first._user_and_tweet._user) user(std::move(second._user_and_tweet._user));
+        new(&first._user_and_tweet._tweet) tweet(std::move(second._user_and_tweet._tweet));
+        
+        break;
+      }
+      
+      case type::list_created:
+      case type::list_destroyed:
+      case type::list_updated:
+      {
+        new(&first._list) list(std::move(second._list));
+        
+        break;
+      }
+      
+      case type::list_add:
+      case type::list_added:
+      case type::list_remove:
+      case type::list_removed:
+      case type::list_subscribe:
+      case type::list_subscribed:
+      case type::list_unsubscribe:
+      case type::list_unsubscribed:
+      {
+        new(&first._user_and_list._user) user(std::move(second._user_and_list._user));
+        new(&first._user_and_list._list) list(std::move(second._user_and_list._list));
+        
+        break;
+      }
+      
+      case type::stall:
+      case type::follow_limit:
+      case type::unknown_warning:
+      {
+        new(&first._warning) std::string(std::move(second._warning));
+        
+        break;
+      }
+      
+      case type::deletion:
+      case type::scrub_location:
+      {
+        first._user_id_and_tweet_id._user_id = second._user_id_and_tweet_id._user_id;
+        first._user_id_and_tweet_id._tweet_id = second._user_id_and_tweet_id._tweet_id;
+        
+        break;
+      }
+      
+      case type::limit:
+      {
+        first._limit = second._limit;
+        
+        break;
+      }
+      
+      case type::withhold_status:
+      {
+        first._withhold_status._user_id = second._withhold_status._user_id;
+        first._withhold_status._tweet_id = second._withhold_status._tweet_id;
+        new(&first._withhold_status._countries) std::vector<std::string>(std::move(second._withhold_status._countries));
+        
+        break;
+      }
+      
+      case type::withhold_user:
+      {
+        first._withhold_user._user_id = second._withhold_user._user_id;
+        new(&first._withhold_user._countries) std::vector<std::string>(std::move(second._withhold_user._countries));
+        
+        break;
+      }
+      
+      case type::disconnect:
+      {
+        first._disconnect = second._disconnect;
+        
+        break;
+      }
+      
+      case type::friends:
+      {
+        new(&first._friends) std::set<user_id>(std::move(second._friends));
+        
+        break;
+      }
+      
+      case type::direct:
+      {
+        new(&first._direct_message) direct_message(std::move(second._direct_message));
+        
+        break;
+      }
+      
+      case type::invalid:
+      case type::unknown:
+      {
+        break;
+      }
+    }
+    
+    // Now destruct the second and initialize it with data from the first
+    second.~notification();
+    
+    second._type = tempType;
+    
+    switch (tempType)
+    {
+      case type::tweet:
+      {
+        new(&second._tweet) tweet(std::move(tempTweet));
+      
+        break;
+      }
+    
+      case type::update_user:
+      case type::block:
+      case type::unblock:
+      case type::follow:
+      case type::followed:
+      case type::unfollow:
+      {
+        new(&second._user) user(std::move(tempUser));
+      
+        break;
+      }
+    
+      case type::favorite:
+      case type::favorited:
+      case type::unfavorite:
+      case type::unfavorited:
+      case type::quoted:
+      {
+        new(&second._user_and_tweet._user) user(std::move(tempUser));
+        new(&second._user_and_tweet._tweet) tweet(std::move(tempTweet));
+      
+        break;
+      }
+    
+      case type::list_created:
+      case type::list_destroyed:
+      case type::list_updated:
+      {
+        new(&second._list) list(std::move(tempList));
+      
+        break;
+      }
+    
+      case type::list_add:
+      case type::list_added:
+      case type::list_remove:
+      case type::list_removed:
+      case type::list_subscribe:
+      case type::list_subscribed:
+      case type::list_unsubscribe:
+      case type::list_unsubscribed:
+      {
+        new(&second._user_and_list._user) user(std::move(tempUser));
+        new(&second._user_and_list._list) list(std::move(tempList));
+      
+        break;
+      }
+    
+      case type::stall:
+      case type::follow_limit:
+      case type::unknown_warning:
+      {
+        new(&second._warning) std::string(std::move(tempWarning));
+      
+        break;
+      }
+    
+      case type::deletion:
+      case type::scrub_location:
+      {
+        second._user_id_and_tweet_id._user_id = tempUserId;
+        second._user_id_and_tweet_id._tweet_id = tempTweetId;
+      
+        break;
+      }
+    
+      case type::limit:
+      {
+        second._limit = tempLimit;
+      
+        break;
+      }
+    
+      case type::withhold_status:
+      {
+        second._withhold_status._user_id = tempUserId;
+        second._withhold_status._tweet_id = tempTweetId;
+        new(&second._withhold_status._countries) std::vector<std::string>(std::move(tempCountries));
+      
+        break;
+      }
+    
+      case type::withhold_user:
+      {
+        second._withhold_user._user_id = tempUserId;
+        new(&second._withhold_user._countries) std::vector<std::string>(std::move(tempCountries));
+      
+        break;
+      }
+    
+      case type::disconnect:
+      {
+        second._disconnect = tempDisconnectCode;
+      
+        break;
+      }
+    
+      case type::friends:
+      {
+        new(&second._friends) std::set<user_id>(std::move(tempFriends));
+      
+        break;
+      }
+    
+      case type::direct:
+      {
+        new(&second._direct_message) direct_message(std::move(tempDirectMessage));
+      
+        break;
+      }
+    
+      case type::invalid:
+      case type::unknown:
       {
         break;
       }
@@ -767,6 +1054,28 @@ namespace twitter {
     }
   }
   
+  void notification::setTweetID(tweet_id _arg)
+  {
+    switch (_type)
+    {
+      case type::deletion:
+      case type::scrub_location:
+      {
+        _user_id_and_tweet_id._tweet_id = _arg;;
+      }
+      
+      case type::withhold_status:
+      {
+        _withhold_status._tweet_id = _arg;
+      }
+      
+      default:
+      {
+        assert(false);
+      }
+    }
+  }
+  
   user_id notification::getUserID() const
   {
     switch (_type)
@@ -785,6 +1094,33 @@ namespace twitter {
       case type::withhold_user:
       {
         return _withhold_user._user_id;
+      }
+
+      default:
+      {
+        assert(false);
+      }
+    }
+  }
+  
+  void notification::setUserID(user_id _arg)
+  {
+    switch (_type)
+    {      
+      case type::deletion:
+      case type::scrub_location:
+      {
+        _user_id_and_tweet_id._user_id = _arg;
+      }
+      
+      case type::withhold_status:
+      {
+        _withhold_status._user_id = _arg;
+      }
+      
+      case type::withhold_user:
+      {
+        _withhold_user._user_id = _arg;
       }
 
       default:
@@ -822,6 +1158,13 @@ namespace twitter {
     return _disconnect;
   }
   
+  void notification::setDisconnectCode(disconnect_code _arg)
+  {
+    assert(_type == type::disconnect);
+    
+    _disconnect = _arg;
+  }
+  
   const std::set<user_id>& notification::getFriends() const
   {
     assert(_type == type::friends);
@@ -841,6 +1184,13 @@ namespace twitter {
     assert(_type == type::limit);
     
     return _limit;
+  }
+  
+  void notification::setLimit(int _arg)
+  {
+    assert(_type == type::limit);
+    
+    _limit = _arg;
   }
   
   const std::string& notification::getWarning() const

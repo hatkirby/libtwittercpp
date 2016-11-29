@@ -5,8 +5,8 @@
 
 namespace twitter {
   
-  user::user(const client& tclient, std::string data) try
-    : _client(tclient)
+  user::user(std::string data) try
+    : _valid(true)
   {
     auto json = nlohmann::json::parse(data);
     _id = json["id"].get<user_id>();
@@ -18,26 +18,6 @@ namespace twitter {
   } catch (const std::domain_error& error)
   {
     std::throw_with_nested(malformed_object("user", data));
-  }
-  
-  std::set<user_id> user::getFriends() const
-  {
-    return _client.getFriends(_id);
-  }
-  
-  std::set<user_id> user::getFollowers() const
-  {
-    return _client.getFollowers(_id);
-  }
-  
-  void user::follow() const
-  {
-    _client.follow(_id);
-  }
-  
-  void user::unfollow() const
-  {
-    _client.unfollow(_id);
   }
 
 };

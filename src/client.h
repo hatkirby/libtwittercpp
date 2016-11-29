@@ -29,10 +29,20 @@ namespace twitter {
     long uploadMedia(std::string media_type, const char* data, long data_length) const;
     
     tweet replyToTweet(std::string msg, tweet_id in_response_to, std::list<long> media_ids = {}) const;
+    
     std::set<user_id> getFriends(user_id id) const;
+    std::set<user_id> getFriends(const user& u) const;
+    std::set<user_id> getFriends() const;
+    
     std::set<user_id> getFollowers(user_id id) const;
+    std::set<user_id> getFollowers(const user& u) const;
+    std::set<user_id> getFollowers() const;
+    
     void follow(user_id toFollow) const;
+    void follow(const user& toFollow) const;
+    
     void unfollow(user_id toUnfollow) const;
+    void unfollow(const user& toUnfollow) const;
     
     const user& getUser() const;
     

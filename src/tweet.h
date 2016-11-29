@@ -18,57 +18,65 @@ namespace twitter {
   class tweet {
     public:
       
-      tweet(const client& tclient, std::string data);
+      tweet() {}
+      tweet(std::string data);
       
-      tweet(const tweet& other) = delete;
-      tweet& operator=(const tweet& other) = delete;
+      tweet(const tweet& other);
+      tweet(tweet&& other);
       
-      tweet(tweet&& other) = default;
-      tweet& operator=(tweet&& other) = default;
+      tweet& operator=(tweet other);
+      
+      friend void swap(tweet& first, tweet& second);
       
       tweet_id getID() const
       {
+        assert(_valid);
+        
         return _id;
       }
       
       std::string getText() const
       {
+        assert(_valid);
+        
         return _text;
       }
       
       const user& getAuthor() const
       {
+        assert(_valid);
+        
         return *_author;
       }
 
       bool isRetweet() const
       {
+        assert(_valid);
+        
         return _is_retweet;
       }
       
       const tweet& getRetweet() const
       {
-        assert(_is_retweet);
+        assert(_valid && _is_retweet);
         
         return *_retweeted_status;
       }
       
       const std::vector<std::pair<user_id, std::string>>& getMentions() const
       {
+        assert(_valid);
+        
         return _mentions;
       }
       
-      std::string generateReplyPrefill() const;
-      
-      tweet reply(std::string message, std::list<long> media_ids = {}) const;
-      
-      bool isMyTweet() const;
+      std::string generateReplyPrefill(const user& me) const;
       
       std::string getURL() const;
       
     private:
       
-      const client& _client;
+      bool _valid = false;
       tweet_id _id;
       std::string _text;
       std::unique_ptr<user> _author;

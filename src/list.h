@@ -8,7 +8,9 @@ namespace twitter {
   class list {
   public:
     
+    list() {}
     explicit list(std::string data);
+
   };
   
 };

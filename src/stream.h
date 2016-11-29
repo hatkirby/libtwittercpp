@@ -16,7 +16,7 @@ namespace twitter {
   class stream {
   public:
     
-    typedef std::function<void(const notification& _notification)> notify_callback;
+    typedef std::function<void(notification _notification)> notify_callback;
     
     stream(
       const client& tclient,

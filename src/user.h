@@ -3,6 +3,7 @@
 
 #include <string>
 #include <set>
+#include <cassert>
 
 namespace twitter {
   
@@ -13,20 +14,27 @@ namespace twitter {
   class user {
     public:
       
-      user(const client& tclient, std::string data);
+      user() {}
+      user(std::string data);
       
       user_id getID() const
       {
+        assert(_valid);
+        
         return _id;
       }
       
       std::string getScreenName() const
       {
+        assert(_valid);
+        
         return _screen_name;
       }
       
       std::string getName() const
       {
+        assert(_valid);
+        
         return _name;
       }
       
@@ -40,14 +48,9 @@ namespace twitter {
         return _id != other._id;
       }
       
-      std::set<user_id> getFriends() const;
-      std::set<user_id> getFollowers() const;
-      void follow() const;
-      void unfollow() const;
-      
     private:
       
-      const client& _client;
+      bool _valid = false;
       user_id _id;
       std::string _screen_name;
       std::string _name;

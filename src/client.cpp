@@ -330,7 +330,7 @@ namespace twitter {
         _oauth_token.get());
     
     _current_user =
-      make_unique<user>(*this,
+      make_unique<user>(
         get(*_oauth_client,
           "https://api.twitter.com/1.1/account/verify_credentials.json")
         .perform());
@@ -349,7 +349,7 @@ namespace twitter {
       datastrstream << twitter::implode(std::begin(media_ids), std::end(media_ids), ",");
     }
     
-    return tweet(*this,
+    return tweet(
       post(*_oauth_client,
         "https://api.twitter.com/1.1/statuses/update.json",
         datastrstream.str())
@@ -369,7 +369,7 @@ namespace twitter {
       datastrstream << twitter::implode(std::begin(media_ids), std::end(media_ids), ",");
     }
     
-    return tweet(*this,
+    return tweet(
       post(*_oauth_client,
         "https://api.twitter.com/1.1/statuses/update.json",
         datastrstream.str())
@@ -533,6 +533,16 @@ namespace twitter {
     return result;
   }
   
+  std::set<user_id> client::getFriends(const user& id) const
+  {
+    return getFriends(id.getID());
+  }
+  
+  std::set<user_id> client::getFriends() const
+  {
+    return getFriends(getUser().getID());
+  }
+  
   std::set<user_id> client::getFollowers(user_id id) const
   {
     long long cursor = -1;
@@ -567,6 +577,16 @@ namespace twitter {
     return result;
   }
   
+  std::set<user_id> client::getFollowers(const user& id) const
+  {
+    return getFollowers(id.getID());
+  }
+  
+  std::set<user_id> client::getFollowers() const
+  {
+    return getFollowers(getUser().getID());
+  }
+  
   void client::follow(user_id toFollow) const
   {
     std::stringstream datastrstream;
@@ -576,6 +596,11 @@ namespace twitter {
     post(*_oauth_client, "https://api.twitter.com/1.1/friendships/create.json", datastrstream.str()).perform();
   }
   
+  void client::follow(const user& toFollow) const
+  {
+    return follow(toFollow.getID());
+  }
+  
   void client::unfollow(user_id toUnfollow) const
   {
     std::stringstream datastrstream;
@@ -583,6 +608,11 @@ namespace twitter {
     datastrstream << toUnfollow;
     
     post(*_oauth_client, "https://api.twitter.com/1.1/friendships/destroy.json", datastrstream.str()).perform();
+  }
+  
+  void client::unfollow(const user& toUnfollow) const
+  {
+    return unfollow(toUnfollow.getID());
   }
 
   const user& client::getUser() const
