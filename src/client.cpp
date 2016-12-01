@@ -376,6 +376,11 @@ namespace twitter {
       .perform());
   }
   
+  tweet client::replyToTweet(std::string msg, const tweet& in_response_to, std::list<long> media_ids) const
+  {
+    return replyToTweet(msg, in_response_to.getID(), media_ids);
+  }
+  
   long client::uploadMedia(std::string media_type, const char* data, long data_length) const try
   {
     curl::curl_form form;
