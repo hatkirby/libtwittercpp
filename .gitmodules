@@ -3,4 +3,4 @@
 	url = https://github.com/hatkirby/liboauthcpp
 [submodule "vendor/curlcpp"]
 	path = vendor/curlcpp
-	url = https://github.com/JosephP91/curlcpp
+	url = https://github.com/hatkirby/curlcpp
