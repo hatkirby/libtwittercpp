@@ -591,7 +591,39 @@ namespace twitter {
   {
     return getFollowers(getUser().getID());
   }
-  
+
+  std::set<user_id> client::getBlocks() const
+  {
+    long long cursor = -1;
+    std::set<user_id> result;
+
+    while (cursor != 0)
+    {
+      std::stringstream urlstream;
+      urlstream << "https://api.twitter.com/1.1/blocks/ids.json?cursor=";
+      urlstream << cursor;
+
+      std::string url = urlstream.str();
+      std::string response_data = get(*_oauth_client, url).perform();
+
+      try
+      {
+        nlohmann::json rjs = nlohmann::json::parse(response_data);
+
+        cursor = rjs["next_cursor"].get<long long>();
+        result.insert(std::begin(rjs["ids"]), std::end(rjs["ids"]));
+      } catch (const std::invalid_argument& error)
+      {
+        std::throw_with_nested(invalid_response(response_data));
+      } catch (const std::domain_error& error)
+      {
+        std::throw_with_nested(invalid_response(response_data));
+      }
+    }
+
+    return result;
+  }
+
   void client::follow(user_id toFollow) const
   {
     std::stringstream datastrstream;

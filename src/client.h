@@ -38,7 +38,9 @@ namespace twitter {
     std::set<user_id> getFollowers(user_id id) const;
     std::set<user_id> getFollowers(const user& u) const;
     std::set<user_id> getFollowers() const;
-    
+
+    std::set<user_id> getBlocks() const;
+
     void follow(user_id toFollow) const;
     void follow(const user& toFollow) const;
     
