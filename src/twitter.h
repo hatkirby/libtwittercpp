@@ -11,6 +11,7 @@ namespace twitter {
 #include "util.h"
 #include "auth.h"
 #include "client.h"
+#include "timeline.h"
 #include "stream.h"
 #include "tweet.h"
 #include "user.h"

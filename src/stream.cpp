@@ -4,23 +4,27 @@
 #include <curl_header.h>
 #include "util.h"
 #include "notification.h"
-#include "client.h"
+#include "request.h"
 
 namespace twitter {
 
   stream::stream(
-    const client& tclient,
+    const auth& tauth,
     notify_callback callback,
     bool with_followings,
     bool receive_all_replies,
     std::list<std::string> track,
     std::list<bounding_box> locations) :
-      _client(tclient),
+      _auth(tauth),
       _notify(callback),
+      _currentUser(get(
+        _auth,
+        "https://api.twitter.com/1.1/account/verify_credentials.json")
+          .perform()),
       _thread(&stream::run, this, generateUrl(with_followings, receive_all_replies, track, locations))
   {
   }
-  
+
   stream::~stream()
   {
     if (_thread.joinable())
@@ -29,7 +33,7 @@ namespace twitter {
       _thread.join();
     }
   }
-  
+
   std::string stream::generateUrl(
     bool with_followings,
     bool receive_all_replies,
@@ -37,68 +41,68 @@ namespace twitter {
     std::list<bounding_box> locations)
   {
     std::list<std::string> arguments;
-    
+
     if (receive_all_replies)
     {
       arguments.push_back("replies=all");
     }
-    
+
     if (!with_followings)
     {
       arguments.push_back("with=user");
     }
-    
+
     if (!track.empty())
     {
       std::ostringstream trackstr;
       trackstr << "track=";
-      
+
       for (auto it = std::begin(track); it != std::end(track); it++)
       {
         if (it != std::begin(track))
         {
           trackstr << ",";
         }
-        
+
         trackstr << OAuth::HttpEncodeQueryValue(*it);
       }
-      
+
       arguments.push_back(trackstr.str());
     }
-    
+
     if (!locations.empty())
     {
       std::ostringstream localstr;
       localstr << "locations=";
-      
+
       for (auto it = std::begin(locations); it != std::end(locations); it++)
       {
         if (it != std::begin(locations))
         {
           localstr << ",";
         }
-        
+
         localstr << (double)it->getSouthWestLongitude() << ",";
         localstr << (double)it->getSouthWestLatitude() << ",";
         localstr << (double)it->getNorthEastLongitude() << ",";
         localstr << (double)it->getNorthEastLatitude();
       }
-      
+
       arguments.push_back(localstr.str());
     }
-    
+
     std::ostringstream urlstr;
     urlstr << "https://userstream.twitter.com/1.1/user.json";
-    
+
     if (!arguments.empty())
     {
       urlstr << "?";
       urlstr << implode(std::begin(arguments), std::end(arguments), "&");
     }
-    
+
     return urlstr.str();
   }
-  
+
   void stream::run(std::string url)
   {
     _backoff_type = backoff::none;
@@ -108,15 +112,15 @@ namespace twitter {
       curl::curl_ios<stream> ios(this, [] (void* contents, size_t size, size_t nmemb, void* userp) {
         return static_cast<stream*>(userp)->write(static_cast<char*>(contents), size, nmemb);
       });
-    
+
       curl::curl_easy conn(ios);
       curl::curl_header headers;
       std::string oauth_header;
-    
+
       try
       {
-        oauth_header = _client._oauth_client->getFormattedHttpHeader(OAuth::Http::Get, url, "");
-      
+        oauth_header = _auth.getClient().getFormattedHttpHeader(OAuth::Http::Get, url, "");
+
         if (!oauth_header.empty())
         {
           headers.add(oauth_header);
@@ -126,10 +130,10 @@ namespace twitter {
         std::cout << "Error generating OAuth header:" << std::endl;
         std::cout << error.what() << std::endl;
         std::cout << "This is likely due to a malformed URL." << std::endl;
-  
+
         assert(false);
       }
-    
+
       try
       {
         conn.add<CURLOPT_HEADERFUNCTION>(nullptr);
@@ -146,10 +150,10 @@ namespace twitter {
       } catch (const curl::curl_exception& error)
       {
         error.print_traceback();
-      
+
         assert(false);
       }
-      
+
       bool failure = false;
       try
       {
@@ -169,7 +173,7 @@ namespace twitter {
           }
         }
       }
-      
+
       if (!failure)
       {
         long response_code = conn.get_info<CURLINFO_RESPONSE_CODE>().get();
@@ -198,7 +202,7 @@ namespace twitter {
           }
         }
       }
-      
+
       std::this_thread::sleep_for(_backoff_amount);
 
       switch (_backoff_type)
@@ -209,35 +213,35 @@ namespace twitter {
           {
             _backoff_amount += std::chrono::milliseconds(250);
           }
-        
+
           break;
         }
-      
+
         case backoff::http:
         {
           if (_backoff_amount < std::chrono::seconds(320))
           {
             _backoff_amount *= 2;
           }
-        
+
           break;
         }
-      
+
         case backoff::rate_limit:
         {
           _backoff_amount *= 2;
-        
+
           break;
         }
-        
+
         case backoff::none:
-        { 
+        {
           break;
         }
       }
     }
   }
-  
+
   size_t stream::write(char* ptr, size_t size, size_t nmemb)
   {
     for (size_t i = 0; i < size*nmemb; i++)
@@ -245,38 +249,38 @@ namespace twitter {
       if (ptr[i] == '\r')
       {
         i++; // Skip the \n
-        
+
         if (!_buffer.empty())
         {
-          notification n(_client, _buffer);
+          notification n(_currentUser, _buffer);
           if (n.getType() == notification::type::friends)
           {
             _established = true;
             _backoff_type = backoff::none;
             _backoff_amount = std::chrono::milliseconds(0);
           }
-          
+
           _notify(std::move(n));
-                    
+
           _buffer = "";
         }
       } else {
         _buffer.push_back(ptr[i]);
       }
     }
-    
+
     time(&_last_write);
-    
+
     return size*nmemb;
   }
-  
+
   int stream::progress()
   {
     if (_stop)
     {
       return 1;
     }
-    
+
     if (_established)
     {
       if (difftime(time(NULL), _last_write) >= 90)
@@ -284,8 +288,8 @@ namespace twitter {
         return 1;
       }
     }
-    
+
     return 0;
   }
-  
+
 }

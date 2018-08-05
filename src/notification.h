@@ -10,9 +10,9 @@
 #include "direct_message.h"
 
 namespace twitter {
-  
+
   class client;
-  
+
   enum class disconnect_code
   {
     shutdown,
@@ -27,13 +27,13 @@ namespace twitter {
     load,
     unknown
   };
-  
+
   class notification {
   public:
     enum class type {
       // Tweet object
       tweet,
-      
+
       // User object
       update_user,
       block,
@@ -41,19 +41,19 @@ namespace twitter {
       follow,
       followed,
       unfollow,
-      
+
       // User and tweet
       favorite,
       favorited,
       unfavorite,
       unfavorited,
       quoted,
-      
+
       // List
       list_created,
       list_destroyed,
       list_updated,
-      
+
       // User and list
       list_add,
       list_added,
@@ -63,16 +63,16 @@ namespace twitter {
       list_subscribed,
       list_unsubscribe,
       list_unsubscribed,
-      
+
       // Warning
       stall,
       follow_limit,
       unknown_warning,
-      
+
       // User ID and tweet ID
       deletion,
       scrub_location,
-      
+
       // Special
       limit,
       withhold_status,
@@ -80,78 +80,78 @@ namespace twitter {
       disconnect,
       friends,
       direct,
-      
+
       // Nothing
       unknown,
       invalid
     };
-    
+
     type getType() const;
-    
+
     notification() {}
-    notification(const client& tclient, std::string data);
-    
+    notification(const user& currentUser, std::string data);
+
     notification(const notification& other);
     notification(notification&& other);
     notification& operator=(notification other);
     ~notification();
-    
+
     friend void swap(notification& first, notification& second);
-    
+
     const tweet& getTweet() const;
     tweet& getTweet()
     {
       return const_cast<tweet&>(static_cast<const notification&>(*this).getTweet());
     }
-    
+
     const user& getUser() const;
     user& getUser()
     {
       return const_cast<user&>(static_cast<const notification&>(*this).getUser());
     }
-    
+
     const list& getList() const;
     list& getList()
     {
       return const_cast<list&>(static_cast<const notification&>(*this).getList());
     }
-    
+
     tweet_id getTweetID() const;
     void setTweetID(tweet_id _arg);
-    
+
     user_id getUserID() const;
     void setUserID(user_id _arg);
-    
+
     const std::vector<std::string>& getCountries() const;
     std::vector<std::string>& getCountries()
     {
       return const_cast<std::vector<std::string>&>(static_cast<const notification&>(*this).getCountries());
     }
-    
+
     disconnect_code getDisconnectCode() const;
     void setDisconnectCode(disconnect_code _arg);
-    
+
     const std::set<user_id>& getFriends() const;
     std::set<user_id>& getFriends()
     {
       return const_cast<std::set<user_id>&>(static_cast<const notification&>(*this).getFriends());
     }
-    
+
     const direct_message& getDirectMessage() const;
     direct_message& getDirectMessage()
     {
       return const_cast<direct_message&>(static_cast<const notification&>(*this).getDirectMessage());
     }
-    
+
     int getLimit() const;
     void setLimit(int _arg);
-    
+
     const std::string& getWarning() const;
     std::string& getWarning()
     {
       return const_cast<std::string&>(static_cast<const notification&>(*this).getWarning());
     }
-    
+
   private:
     union {
       tweet _tweet;
@@ -186,7 +186,7 @@ namespace twitter {
     };
     type _type = type::invalid;
   };
-  
+
 };
 
 #endif /* end of include guard: NOTIFICATION_H_69AEF4CC */

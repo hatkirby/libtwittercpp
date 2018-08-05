@@ -2,28 +2,36 @@
 #define AUTH_H_48EF85FD
 
 #include <string>
+#include "../vendor/liboauthcpp/include/liboauthcpp/liboauthcpp.h"
 
 namespace twitter {
-  
+
   class auth {
-    public:
-      void setConsumerKey(std::string _arg);
-      void setConsumerSecret(std::string _arg);
-      void setAccessKey(std::string _arg);
-      void setAccessSecret(std::string _arg);
-      
-      std::string getConsumerKey() const;
-      std::string getConsumerSecret() const;
-      std::string getAccessKey() const;
-      std::string getAccessSecret() const;
-      
-    private:
-      std::string _consumer_key;
-      std::string _consumer_secret;
-      std::string _access_key;
-      std::string _access_secret;
+  public:
+
+    auth(
+      std::string consumerKey,
+      std::string consumerSecret,
+      std::string accessKey,
+      std::string accessSecret) :
+        consumer_(std::move(consumerKey), std::move(consumerSecret)),
+        token_(std::move(accessKey), std::move(accessSecret)),
+        client_(&consumer_, &token_)
+    {
+    }
+
+    const OAuth::Client& getClient() const
+    {
+      return client_;
+    }
+
+  private:
+
+    OAuth::Consumer consumer_;
+    OAuth::Token token_;
+    OAuth::Client client_;
   };
-  
+
 };
 
 #endif /* end of include guard: AUTH_H_48EF85FD */

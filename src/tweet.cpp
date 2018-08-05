@@ -12,13 +12,13 @@ namespace twitter {
     auto json = nlohmann::json::parse(data);
     _id = json["id"].get<tweet_id>();
     _text = json["text"].get<std::string>();
-    _author = make_unique<user>(json["user"].dump());
+    _author = std::make_unique<user>(json["user"].dump());
     
     if (!json["retweeted_status"].is_null())
     {
       _is_retweet = true;
       
-      _retweeted_status = make_unique<tweet>(json["retweeted_status"].dump());
+      _retweeted_status = std::make_unique<tweet>(json["retweeted_status"].dump());
     }
     
     if (!json["entities"].is_null())
@@ -45,12 +45,12 @@ namespace twitter {
     _valid = other._valid;
     _id = other._id;
     _text = other._text;
-    _author = make_unique<user>(*other._author);
+    _author = std::make_unique<user>(*other._author);
     _is_retweet = other._is_retweet;
     
     if (_is_retweet)
     {
-      _retweeted_status = make_unique<tweet>(*other._retweeted_status);
+      _retweeted_status = std::make_unique<tweet>(*other._retweeted_status);
     }
     
     _mentions = other._mentions;
