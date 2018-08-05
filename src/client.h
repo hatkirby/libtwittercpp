@@ -55,6 +55,8 @@ namespace twitter {
       return mentionsTimeline_;
     }
 
+    std::list<tweet> hydrateTweets(std::set<tweet_id> ids) const;
+
   private:
 
     const auth& auth_;
