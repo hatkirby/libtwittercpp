@@ -4,6 +4,7 @@
 #include <string>
 #include <sstream>
 #include <memory>
+#include <ctime>
 
 namespace twitter {
 
@@ -24,6 +25,8 @@ namespace twitter {
 
     return result.str();
   }
+
+  time_t timegm(struct tm * t);
 
 };
 

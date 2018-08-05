@@ -21,7 +21,8 @@ add_library(twitter++
   src/direct_message.cpp
   src/list.cpp
   src/user.cpp
-  src/configuration.cpp)
+  src/configuration.cpp
+  src/util.cpp)
 
 set_property(TARGET twitter++ PROPERTY CXX_STANDARD 14)
 set_property(TARGET twitter++ PROPERTY CXX_STANDARD_REQUIRED ON)
