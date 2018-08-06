@@ -57,6 +57,8 @@ namespace twitter {
 
     std::list<tweet> hydrateTweets(std::set<tweet_id> ids) const;
 
+    std::list<user> hydrateUsers(std::set<user_id> ids) const;
+
   private:
 
     const auth& auth_;

@@ -384,4 +384,37 @@ namespace twitter {
     return result;
   }
 
+  std::list<user> client::hydrateUsers(std::set<user_id> ids) const
+  {
+    std::list<user> result;
+
+    while (!ids.empty())
+    {
+      std::set<user_id> cur;
+
+      for (int i = 0; i < 100 && !ids.empty(); i++)
+      {
+        cur.insert(*std::begin(ids));
+        ids.erase(std::begin(ids));
+      }
+
+      std::string datastr = "user_id=" +
+        OAuth::PercentEncode(implode(std::begin(cur), std::end(cur), ","));
+
+      std::string response =
+        post(auth_,
+          "https://api.twitter.com/1.1/users/lookup.json",
+          datastr).perform();
+
+      nlohmann::json rjs = nlohmann::json::parse(response);
+
+      for (auto& single : rjs)
+      {
+        result.emplace_back(single.dump());
+      }
+    }
+
+    return result;
+  }
+
 };
