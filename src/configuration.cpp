@@ -4,18 +4,18 @@
 #include "codes.h"
 
 namespace twitter {
-  
+
   configuration::configuration(std::string data) try
   {
     auto json_data = nlohmann::json::parse(data);
-    
+
     _characters_reserved_per_media = json_data["characters_reserved_per_media"].get<size_t>();
     _dm_text_character_limit = json_data["dm_text_character_limit"].get<size_t>();
     _max_media_per_upload = json_data["max_media_per_upload"].get<size_t>();
     _photo_size_limit = json_data["photo_size_limit"].get<size_t>();
     _short_url_length = json_data["short_url_length"].get<size_t>();
     _short_https_url_length = json_data["short_url_length_https"].get<size_t>();
-    
+
     for (auto sizedata = std::begin(json_data["photo_sizes"]); sizedata != std::end(json_data["photo_sizes"]); ++sizedata)
     {
       photosize size;
@@ -27,10 +27,10 @@ namespace twitter {
       } else {
         size.resize = resizetype::crop;
       }
-      
+
       _photo_sizes[sizedata.key()] = size;
     }
-    
+
     for (auto path : json_data["non_username_paths"])
     {
       _non_username_paths.insert(path.get<std::string>());
