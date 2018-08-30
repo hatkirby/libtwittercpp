@@ -16,8 +16,6 @@ add_library(twitter++
   src/timeline.cpp
   src/tweet.cpp
   src/codes.cpp
-  src/direct_message.cpp
-  src/list.cpp
   src/user.cpp
   src/configuration.cpp
   src/util.cpp)
