@@ -1,8 +1,8 @@
 #include "timeline.h"
 #include <sstream>
 #include <json.hpp>
+#include <hkutil/string.h>
 #include "codes.h"
-#include "util.h"
 #include "request.h"
 
 namespace twitter {
@@ -40,7 +40,8 @@ namespace twitter {
       if (!arguments.empty())
       {
         urlstr << "?";
-        urlstr << implode(std::begin(arguments), std::end(arguments), "&");
+        urlstr << hatkirby::implode(
+          std::begin(arguments), std::end(arguments), "&");
       }
 
       std::string theUrl = urlstr.str();

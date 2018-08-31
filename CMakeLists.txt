@@ -10,6 +10,8 @@ include_directories(vendor/liboauthcpp/include)
 add_subdirectory(vendor/curlcpp)
 include_directories(${CURLCPP_SOURCE_DIR}/include)
 
+include_directories(vendor/hkutil)
+
 add_library(twitter++
   src/client.cpp
   src/request.cpp

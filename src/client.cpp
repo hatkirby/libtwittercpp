@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <json.hpp>
 #include <thread>
+#include <hkutil/string.h>
 #include "request.h"
 
 namespace twitter {
@@ -26,7 +27,7 @@ namespace twitter {
     if (!media_ids.empty())
     {
       datastrstream << "&media_ids=";
-      datastrstream << twitter::implode(std::begin(media_ids), std::end(media_ids), ",");
+      datastrstream << hatkirby::implode(std::begin(media_ids), std::end(media_ids), ",");
     }
 
     return tweet(
@@ -46,7 +47,7 @@ namespace twitter {
     if (!media_ids.empty())
     {
       datastrstream << "&media_ids=";
-      datastrstream << twitter::implode(std::begin(media_ids), std::end(media_ids), ",");
+      datastrstream << hatkirby::implode(std::begin(media_ids), std::end(media_ids), ",");
     }
 
     return tweet(
@@ -366,7 +367,8 @@ namespace twitter {
       }
 
       std::string datastr = "id=" +
-        OAuth::PercentEncode(implode(std::begin(cur), std::end(cur), ","));
+        OAuth::PercentEncode(
+          hatkirby::implode(std::begin(cur), std::end(cur), ","));
 
       std::string response =
         post(auth_,
@@ -399,7 +401,8 @@ namespace twitter {
       }
 
       std::string datastr = "user_id=" +
-        OAuth::PercentEncode(implode(std::begin(cur), std::end(cur), ","));
+        OAuth::PercentEncode(
+          hatkirby::implode(std::begin(cur), std::end(cur), ","));
 
       std::string response =
         post(auth_,

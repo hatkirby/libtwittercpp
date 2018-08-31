@@ -4,3 +4,6 @@
 [submodule "vendor/curlcpp"]
 	path = vendor/curlcpp
 	url = https://github.com/JosephP91/curlcpp
+[submodule "vendor/hkutil"]
+	path = vendor/hkutil
+	url = git@github.com:hatkirby/hkutil

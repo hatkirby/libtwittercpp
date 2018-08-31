@@ -9,7 +9,6 @@
 #include "tweet.h"
 #include "auth.h"
 #include "configuration.h"
-#include "util.h"
 #include "timeline.h"
 
 namespace twitter {
