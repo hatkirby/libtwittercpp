@@ -7,83 +7,48 @@
 
 namespace twitter {
 
-  tweet::tweet(std::string data) try
-    : _valid(true)
+  tweet::tweet(std::string data)
   {
-    auto json = nlohmann::json::parse(data);
-    _id = json["id"].get<tweet_id>();
-    _text = json["text"].get<std::string>();
-    _author = std::make_unique<user>(json["user"].dump());
-
-    std::tm ctt = { 0 };
-    std::stringstream createdAtStream;
-    createdAtStream << json["created_at"].get<std::string>();
-    createdAtStream >> std::get_time(&ctt, "%a %b %d %H:%M:%S +0000 %Y");
-    _created_at = twitter::timegm(&ctt);
-
-    if (!json["retweeted_status"].is_null())
+    try
     {
-      _is_retweet = true;
+      auto json = nlohmann::json::parse(data);
+      _id = json["id"].get<tweet_id>();
+      _text = json["text"].get<std::string>();
+      _author = new user(json["user"].dump());
 
-      _retweeted_status = std::make_unique<tweet>(json["retweeted_status"].dump());
-    }
+      std::tm ctt = { 0 };
+      std::stringstream createdAtStream;
+      createdAtStream << json["created_at"].get<std::string>();
+      createdAtStream >> std::get_time(&ctt, "%a %b %d %H:%M:%S +0000 %Y");
+      _created_at = twitter::timegm(&ctt);
 
-    if (!json["entities"].is_null())
-    {
-      auto entities = json["entities"];
-      if (!entities["user_mentions"].is_null())
+      if (!json["retweeted_status"].is_null())
       {
-        for (auto mention : entities["user_mentions"])
+        _is_retweet = true;
+
+        _retweeted_status = new tweet(json["retweeted_status"].dump());
+      }
+
+      if (!json["entities"].is_null())
+      {
+        auto entities = json["entities"];
+        if (!entities["user_mentions"].is_null())
         {
-          _mentions.push_back(std::make_pair(mention["id"].get<user_id>(), mention["screen_name"].get<std::string>()));
+          for (auto mention : entities["user_mentions"])
+          {
+            _mentions.emplace_back(
+              mention["id"].get<user_id>(),
+              mention["screen_name"].get<std::string>());
+          }
         }
       }
-    }
-  } catch (const std::invalid_argument& error)
-  {
-    std::throw_with_nested(malformed_object("tweet", data));
-  } catch (const std::domain_error& error)
-  {
-    std::throw_with_nested(malformed_object("tweet", data));
-  }
-
-  tweet::tweet(const tweet& other)
-  {
-    _valid = other._valid;
-    _id = other._id;
-    _text = other._text;
-    _author = std::make_unique<user>(*other._author);
-    _is_retweet = other._is_retweet;
-
-    if (_is_retweet)
+    } catch (const std::invalid_argument& error)
     {
-      _retweeted_status = std::make_unique<tweet>(*other._retweeted_status);
+      std::throw_with_nested(malformed_object("tweet", data));
+    } catch (const std::domain_error& error)
+    {
+      std::throw_with_nested(malformed_object("tweet", data));
     }
-
-    _mentions = other._mentions;
-  }
-
-  tweet::tweet(tweet&& other) : tweet()
-  {
-    swap(*this, other);
-  }
-
-  tweet& tweet::operator=(tweet other)
-  {
-    swap(*this, other);
-
-    return *this;
-  }
-
-  void swap(tweet& first, tweet& second)
-  {
-    std::swap(first._valid, second._valid);
-    std::swap(first._id, second._id);
-    std::swap(first._text, second._text);
-    std::swap(first._author, second._author);
-    std::swap(first._is_retweet, second._is_retweet);
-    std::swap(first._retweeted_status, second._retweeted_status);
-    std::swap(first._mentions, second._mentions);
   }
 
   std::string tweet::generateReplyPrefill(const user& me) const
@@ -104,8 +69,6 @@ namespace twitter {
 
   std::string tweet::getURL() const
   {
-    assert(_valid);
-
     std::ostringstream urlstr;
     urlstr << "https://twitter.com/";
     urlstr << _author->getScreenName();

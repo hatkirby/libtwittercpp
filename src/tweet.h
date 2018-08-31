@@ -4,94 +4,72 @@
 #include <string>
 #include <vector>
 #include <utility>
-#include <cassert>
-#include <list>
-#include <memory>
 #include <ctime>
+#include "../vendor/hkutil/hkutil/recptr.h"
 #include "user.h"
 
 namespace twitter {
 
-  class client;
-
   typedef unsigned long long tweet_id;
 
   class tweet {
-    public:
+  public:
 
-      tweet() {}
-      tweet(std::string data);
+    tweet(std::string data);
 
-      tweet(const tweet& other);
-      tweet(tweet&& other);
+    tweet_id getID() const
+    {
+      return _id;
+    }
 
-      tweet& operator=(tweet other);
+    std::string getText() const
+    {
+      return _text;
+    }
 
-      friend void swap(tweet& first, tweet& second);
+    const user& getAuthor() const
+    {
+      return *_author;
+    }
 
-      tweet_id getID() const
+    const std::time_t& getCreatedAt() const
+    {
+      return _created_at;
+    }
+
+    bool isRetweet() const
+    {
+      return _is_retweet;
+    }
+
+    const tweet& getRetweet() const
+    {
+      if (!_is_retweet)
       {
-        assert(_valid);
-
-        return _id;
+        throw std::logic_error("Tweet is not a retweet");
       }
 
-      std::string getText() const
-      {
-        assert(_valid);
+      return *_retweeted_status;
+    }
 
-        return _text;
-      }
+    const std::vector<std::pair<user_id, std::string>>& getMentions() const
+    {
+      return _mentions;
+    }
 
-      const user& getAuthor() const
-      {
-        assert(_valid);
+    std::string generateReplyPrefill(const user& me) const;
 
-        return *_author;
-      }
+    std::string getURL() const;
 
-      const std::time_t& getCreatedAt() const
-      {
-        assert(_valid);
+  private:
 
-        return _created_at;
-      }
-
-      bool isRetweet() const
-      {
-        assert(_valid);
-
-        return _is_retweet;
-      }
-
-      const tweet& getRetweet() const
-      {
-        assert(_valid && _is_retweet);
-
-        return *_retweeted_status;
-      }
-
-      const std::vector<std::pair<user_id, std::string>>& getMentions() const
-      {
-        assert(_valid);
-
-        return _mentions;
-      }
-
-      std::string generateReplyPrefill(const user& me) const;
-
-      std::string getURL() const;
-
-    private:
-
-      bool _valid = false;
-      tweet_id _id;
-      std::string _text;
-      std::unique_ptr<user> _author;
-      std::time_t _created_at;
-      bool _is_retweet = false;
-      std::unique_ptr<tweet> _retweeted_status;
-      std::vector<std::pair<user_id, std::string>> _mentions;
+    tweet_id _id;
+    std::string _text;
+    hatkirby::recptr<user> _author;
+    std::time_t _created_at;
+    bool _is_retweet = false;
+    hatkirby::recptr<tweet> _retweeted_status;
+    std::vector<std::pair<user_id, std::string>> _mentions;
   };
 
 };
